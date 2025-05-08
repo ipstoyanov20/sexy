@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #ffe5ec;
   --foreground: #171717;
 }
 
@@ -14,7 +14,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #ffe5ec;
     --foreground: #ededed;
   }
 }
@@ -30,17 +30,55 @@ body {
 
 html{
   margin: 0;
+  overflow-y: hidden;
+  overflow-x: hidden;
   padding: 0;
 }
-.animate-spin-slow {
-  animation: spin 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-  animation-play-state: running;
+
+
+/* Replace this in your CSS */
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  85% {
+    transform: rotate(370deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
-.animate-spin-slow.paused {
-  animation-play-state: paused;
+.animate-spin-slow {
+  animation: spin 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
 }
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+
+.blur-overlay {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(10px);
+  background-color: rgba(255, 229, 236, 0.4);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+.blur-overlay.active {
+  opacity: 1;
+}
+
+
+
+
+
+@font-face {
+  font-family: 'love';
+  font-style: normal;
+  src: url('/love.ttf') format('truetype');
+}
+.font-love {
+  font-family: 'love', sans-serif;
+  letter-spacing: 5px;
 }
