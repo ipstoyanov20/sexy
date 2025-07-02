@@ -84,6 +84,50 @@ html{
   }
 }
 
+/* Mobile optimizations */
+@media (max-width: 480px) {
+  .animate-spin-beautiful {
+    animation: spin-beautiful-mobile 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+}
+
+@keyframes spin-beautiful-mobile {
+  0% {
+    transform: rotate(0deg) scale(1);
+    box-shadow: 0 0 20px rgba(255, 139, 171, 0.5);
+  }
+  25% {
+    transform: rotate(90deg) scale(1.03);
+    box-shadow: 0 0 25px rgba(255, 139, 171, 0.7);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.05);
+    box-shadow: 0 0 30px rgba(255, 139, 171, 0.8);
+  }
+  75% {
+    transform: rotate(270deg) scale(1.03);
+    box-shadow: 0 0 25px rgba(255, 139, 171, 0.7);
+  }
+  85% {
+    transform: rotate(370deg) scale(1.01);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    box-shadow: 0 0 20px rgba(255, 139, 171, 0.5);
+  }
+}
+
+/* Touch-friendly interactions */
+@media (hover: none) and (pointer: coarse) {
+  .hover\:scale-110:hover {
+    transform: none;
+  }
+  
+  .hover\:-translate-y-1:hover {
+    transform: none;
+  }
+}
+
 .animate-spin-slow {
   animation: spin 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
 }
