@@ -94,8 +94,8 @@ export default function Home() {
 	const renderGameSection = () => (
 		<div className="w-full max-w-4xl mx-auto px-4">
 			<h1 className="font-bold text-2xl sm:text-3xl md:text-4xl lg:text-5xl mt-5 text-center text-black mb-8 sm:mb-12">
-				МИЛО МОЕ, завърти ❤️
-				<br />и до мен се отпусни ❤️
+				За малката ❤️
+				<br />завърти и се отпусни ❤️
 			</h1>
 			<div className="flex flex-col items-center justify-center min-h-[60vh]">
 				<div className="relative mb-8 sm:mb-12">
@@ -138,13 +138,18 @@ export default function Home() {
 						<div className="absolute inset-0 rounded-full animate-pulse-slow bg-gradient-to-r from-transparent via-white to-transparent opacity-20"></div>
 					</div>
 
+					<div className="flex justify-center">
 					<button
-						className="w-full max-w-xs mx-auto text-white font-love rounded-2xl px-6 py-3 sm:px-8 sm:py-4 md:px-10 md:py-5 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 border-2 border-pink-300 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-sm sm:text-base md:text-lg"
+						className="text-white font-love rounded-full px-8 py-4 sm:px-12 sm:py-5 md:px-16 md:py-6 bg-gradient-to-r from-rose-500 via-pink-500 to-fuchsia-500 hover:from-rose-600 hover:via-pink-600 hover:to-fuchsia-600 border-3 border-white shadow-2xl hover:shadow-pink-500/50 transition-all duration-500 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 hover:-translate-y-2 text-lg sm:text-xl md:text-2xl font-bold tracking-wider animate-pulse"
 						onClick={toggleSpin}
 						disabled={processing}
+						style={{
+							boxShadow: "0 10px 30px rgba(236, 72, 153, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)"
+						}}
 					>
-						{processing ? "ВЪРТЕНЕ..." : "SPIN ✨"}
+						{processing ? "💫 ВЪРТЕНЕ..." : "✨ SPIN ✨"}
 					</button>
+				</div>
 				</div>
 			</div>
 		</div>

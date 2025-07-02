@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "За млаката",
+  title: "За малката",
   description: "От Иво",
 };
 
