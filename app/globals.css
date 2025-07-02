@@ -1,3 +1,179 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffe5ec;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #ffe5ec;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+
+  margin: 0;
+  padding: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+html {
+  margin: 0;
+  overflow-x: hidden;
+  padding: 0;
+}
+
+
+/* Replace this in your CSS */
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  85% {
+    transform: rotate(370deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-beautiful {
+  0% {
+    transform: rotate(0deg) scale(1);
+    box-shadow: 0 0 30px rgba(255, 139, 171, 0.5);
+  }
+
+  25% {
+    transform: rotate(90deg) scale(1.05);
+    box-shadow: 0 0 40px rgba(255, 139, 171, 0.7);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.1);
+    box-shadow: 0 0 50px rgba(255, 139, 171, 0.8);
+  }
+
+  75% {
+    transform: rotate(270deg) scale(1.05);
+    box-shadow: 0 0 40px rgba(255, 139, 171, 0.7);
+  }
+
+  85% {
+    transform: rotate(370deg) scale(1.02);
+  }
+
+  100% {
+    transform: rotate(360deg) scale(1);
+    box-shadow: 0 0 30px rgba(255, 139, 171, 0.5);
+  }
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 480px) {
+  .animate-spin-beautiful {
+    animation: spin-beautiful-mobile 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  }
+}
+
+@keyframes spin-beautiful-mobile {
+  0% {
+    transform: rotate(0deg) scale(1);
+    box-shadow: 0 0 20px rgba(255, 139, 171, 0.5);
+  }
+
+  25% {
+    transform: rotate(90deg) scale(1.03);
+    box-shadow: 0 0 25px rgba(255, 139, 171, 0.7);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.05);
+    box-shadow: 0 0 30px rgba(255, 139, 171, 0.8);
+  }
+
+  75% {
+    transform: rotate(270deg) scale(1.03);
+    box-shadow: 0 0 25px rgba(255, 139, 171, 0.7);
+  }
+
+  85% {
+    transform: rotate(370deg) scale(1.01);
+  }
+
+  100% {
+    transform: rotate(360deg) scale(1);
+    box-shadow: 0 0 20px rgba(255, 139, 171, 0.5);
+  }
+}
+
+/* Touch-friendly interactions */
+@media (hover: none) and (pointer: coarse) {
+  .hover\:scale-110:hover {
+    transform: none;
+  }
+
+  .hover\:-translate-y-1:hover {
+    transform: none;
+  }
+}
+
+.animate-spin-slow {
+  animation: spin 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.animate-spin-beautiful {
+  animation: spin-beautiful 3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
+.blur-overlay {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(10px);
+  background-color: rgba(255, 229, 236, 0.4);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+.blur-overlay.active {
+  opacity: 1;
+}
+
+
+
+
+
 @font-face {
   font-family: 'love';
   font-style: normal;
@@ -7,10 +183,4 @@
 .font-love {
   font-family: 'love', sans-serif;
   letter-spacing: 5px;
-}
-
-html {
-  margin: 0;
-  overflow-x: hidden;
-  padding: 0;
 }
