@@ -1,3 +1,4 @@
+
 "use client";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
@@ -9,6 +10,8 @@ export default function Home() {
 	const [showModal, setShowModal] = useState(false);
 	const [selectedImage, setSelectedImage] = useState(null);
 	const [processing, setProcessing] = useState(false);
+	const [activeSection, setActiveSection] = useState("играй");
+	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const audioRef = useRef(null);
 
 	const images = [
@@ -18,6 +21,15 @@ export default function Home() {
 		"/lizane.webp",
 		"/mis.png",
 		"/doggy2.png",
+	];
+
+	const galleryImages = [
+		{ src: "/kamasutra.png", date: "2024-01-15", title: "Класическа поза" },
+		{ src: "/chair.webp", date: "2024-01-20", title: "Стол варианция" },
+		{ src: "/doggy.png", date: "2024-02-01", title: "Догги стил" },
+		{ src: "/lizane.webp", date: "2024-02-10", title: "Интимна близост" },
+		{ src: "/mis.png", date: "2024-02-15", title: "Мисионерска" },
+		{ src: "/doggy2.png", date: "2024-03-01", title: "Алтернативен догги" }
 	];
 
 	// Fisher-Yates Shuffle
@@ -64,21 +76,13 @@ export default function Home() {
 
 		setSelectedImage(chosen);
 		setShuffledImages(newOrder);
-		// start spinning and blur
 		setIsSpinning(true);
 		setShowBlur(true);
 
-		// after spin duration
 		setTimeout(() => {
-			// stop spinning
 			setIsSpinning(false);
-
-			// after additional delay before unblur
 			setTimeout(() => {
-				// unblur
 				setShowBlur(false);
-
-				// after blur transition, open modal
 				setTimeout(() => {
 					setShowModal(true);
 					setProcessing(false);
@@ -87,76 +91,203 @@ export default function Home() {
 		}, 3000);
 	}
 
-	return (
-		<>
-			<h1 className="font-bold text-4xl mt-5 text-center pl-4 text-black">
+	const renderGameSection = () => (
+		<div className="w-full max-w-4xl mx-auto px-4">
+			<h1 className="font-bold text-2xl sm:text-3xl md:text-4xl lg:text-5xl mt-5 text-center text-black mb-8 sm:mb-12">
 				МИЛО МОЕ, завърти ❤️
 				<br />и до мен се отпусни ❤️
 			</h1>
-			<div className="relative grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-10 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-				<main className="flex flex-col gap-[3px] -translate-y-36 row-start-2 items-center z-20">
+			<div className="flex flex-col items-center justify-center min-h-[60vh]">
+				<div className="relative mb-8 sm:mb-12">
 					<div
-						className={`relative scale-[80%] -translate-x-2.5 w-72 h-72 rounded-full border-4 border-[#ff8fab] flex items-center justify-center transition-filter duration-500 ${
-							isSpinning ? "animate-spin-slow" : ""
+						className={`relative w-48 h-48 sm:w-64 sm:h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 rounded-full border-4 sm:border-6 md:border-8 border-gradient-to-r from-pink-400 via-purple-500 to-pink-600 flex items-center justify-center transition-all duration-500 shadow-2xl ${
+							isSpinning ? "animate-spin-beautiful" : ""
 						} ${showBlur ? "filter blur-md" : "filter blur-0"}`}
+						style={{
+							background: "linear-gradient(45deg, #ff8fab, #ffb3c6, #ff8fab)",
+							boxShadow: "0 0 30px rgba(255, 139, 171, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.2)"
+						}}
 					>
+						<div className="absolute inset-2 rounded-full bg-gradient-to-br from-pink-50 to-pink-100 shadow-inner"></div>
 						{shuffledImages.map((src, index) => {
 							const startAngle = 90;
 							const angle = startAngle + (360 / shuffledImages.length) * index;
-							const radius = 100;
+							const radius = window.innerWidth < 640 ? 70 : window.innerWidth < 768 ? 90 : window.innerWidth < 1024 ? 110 : 130;
 							const x = radius * Math.cos((angle * Math.PI) / 180);
 							const y = radius * Math.sin((angle * Math.PI) / 180);
 							return (
 								<div
 									key={index}
-									className="absolute w-12 h-12"
-									style={{ transform: `translate(${x}px, ${y}px)` }}
+									className="absolute w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-16 lg:h-16 rounded-full overflow-hidden shadow-lg hover:scale-110 transition-transform duration-200"
+									style={{ 
+										transform: `translate(${x}px, ${y}px)`,
+										border: "3px solid white",
+										boxShadow: "0 4px 15px rgba(0,0,0,0.2)"
+									}}
 								>
 									<Image
 										src={src}
 										alt={`pose-${index}`}
 										width={100}
 										height={100}
-										className="rounded-xl"
+										className="w-full h-full object-cover"
 									/>
 								</div>
 							);
 						})}
+						<div className="absolute inset-0 rounded-full animate-pulse-slow bg-gradient-to-r from-transparent via-white to-transparent opacity-20"></div>
 					</div>
 
 					<button
-						className="mt-6 text-black font-love rounded-2xl px-10 py-3 bg-[#ffb3c6] border-2 border-[#ff8fab] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+						className="w-full max-w-xs mx-auto text-white font-love rounded-2xl px-6 py-3 sm:px-8 sm:py-4 md:px-10 md:py-5 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 border-2 border-pink-300 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-sm sm:text-base md:text-lg"
 						onClick={toggleSpin}
 						disabled={processing}
 					>
-						SPIN
+						{processing ? "ВЪРТЕНЕ..." : "SPIN ✨"}
 					</button>
-				</main>
+				</div>
+			</div>
+		</div>
+	);
 
-				{/* Modal */}
-				{showModal && selectedImage && (
-					<div className="fixed inset-0 z-30 flex items-center justify-center bg-[#ffe5ec] bg-opacity-50">
-						<div className="bg-white scale-75 rounded-2xl p-8 flex flex-col items-center">
-							<h2 className="text-2xl mb-4 font-love text-black">
-								🎉 Congratulations! 🎉
-							</h2>
+	const renderGallerySection = () => (
+		<div className="w-full max-w-6xl mx-auto px-4">
+			<h2 className="font-bold text-2xl sm:text-3xl md:text-4xl text-center text-black mb-8 sm:mb-12">
+				📸 Галерия с дати ❤️
+			</h2>
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+				{galleryImages.map((item, index) => (
+					<div key={index} className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
+						<div className="aspect-square rounded-xl overflow-hidden mb-4 bg-gradient-to-br from-pink-100 to-purple-100">
 							<Image
-								src={selectedImage}
-								alt="Selected Pose"
-								width={200}
-								height={200}
-								className="rounded-xl"
+								src={item.src}
+								alt={item.title}
+								width={300}
+								height={300}
+								className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
 							/>
+						</div>
+						<h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">{item.title}</h3>
+						<p className="text-gray-600 text-xs sm:text-sm">📅 {item.date}</p>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+
+	const renderSnakeSection = () => (
+		<div className="w-full max-w-4xl mx-auto px-4 text-center">
+			<h2 className="font-bold text-2xl sm:text-3xl md:text-4xl text-black mb-8 sm:mb-12">
+				🐍 Гадина секция 🐍
+			</h2>
+			<div className="bg-white rounded-2xl p-6 sm:p-8 md:p-12 shadow-2xl">
+				<div className="text-4xl sm:text-6xl md:text-8xl mb-6 animate-bounce">🐍</div>
+				<p className="text-gray-700 text-base sm:text-lg md:text-xl mb-6">
+					Тази секция е за специални моменти... 😈
+				</p>
+				<button className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+					Открий гадината 🐍
+				</button>
+			</div>
+		</div>
+	);
+
+	return (
+		<div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-pink-100">
+			{/* Navigation */}
+			<nav className="bg-white/90 backdrop-blur-lg shadow-lg sticky top-0 z-40 border-b border-pink-200">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+					<div className="flex justify-between items-center h-16 sm:h-20">
+						<div className="flex items-center">
+							<span className="text-xl sm:text-2xl font-love text-pink-600">💕 МойApp</span>
+						</div>
+						
+						{/* Desktop Navigation */}
+						<div className="hidden md:flex space-x-8">
+							{["играй", "галерия", "гадина"].map((section) => (
+								<button
+									key={section}
+									onClick={() => setActiveSection(section)}
+									className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 capitalize ${
+										activeSection === section
+											? "bg-pink-500 text-white shadow-lg"
+											: "text-gray-700 hover:bg-pink-100 hover:text-pink-600"
+									}`}
+								>
+									{section === "играй" && "🎮"} {section === "галерия" && "📸"} {section === "гадина" && "🐍"} {section}
+								</button>
+							))}
+						</div>
+
+						{/* Mobile menu button */}
+						<div className="md:hidden">
 							<button
-								className="mt-6 px-6 py-2 bg-[#ff8fab] text-white rounded-2xl"
-								onClick={() => setShowModal(false)}
+								onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+								className="text-gray-700 hover:text-pink-600 focus:outline-none"
 							>
-								Close
+								<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+								</svg>
 							</button>
 						</div>
 					</div>
-				)}
-			</div>
-		</>
+
+					{/* Mobile Navigation */}
+					{mobileMenuOpen && (
+						<div className="md:hidden bg-white border-t border-pink-200 py-4">
+							{["играй", "галерия", "гадина"].map((section) => (
+								<button
+									key={section}
+									onClick={() => {
+										setActiveSection(section);
+										setMobileMenuOpen(false);
+									}}
+									className={`block w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 capitalize mb-2 ${
+										activeSection === section
+											? "bg-pink-500 text-white"
+											: "text-gray-700 hover:bg-pink-100 hover:text-pink-600"
+									}`}
+								>
+									{section === "играй" && "🎮"} {section === "галерия" && "📸"} {section === "гадина" && "🐍"} {section}
+								</button>
+							))}
+						</div>
+					)}
+				</div>
+			</nav>
+
+			{/* Main Content */}
+			<main className="py-8 sm:py-12 md:py-16 lg:py-20">
+				{activeSection === "играй" && renderGameSection()}
+				{activeSection === "галерия" && renderGallerySection()}
+				{activeSection === "гадина" && renderSnakeSection()}
+			</main>
+
+			{/* Modal */}
+			{showModal && selectedImage && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+					<div className="bg-white rounded-2xl p-6 sm:p-8 flex flex-col items-center max-w-sm sm:max-w-md w-full mx-4 shadow-2xl">
+						<h2 className="text-xl sm:text-2xl mb-4 font-love text-pink-600 animate-bounce">
+							🎉 Поздравления! 🎉
+						</h2>
+						<div className="w-48 h-48 sm:w-56 sm:h-56 rounded-xl overflow-hidden mb-6 shadow-lg">
+							<Image
+								src={selectedImage}
+								alt="Selected Pose"
+								width={300}
+								height={300}
+								className="w-full h-full object-cover"
+							/>
+						</div>
+						<button
+							className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+							onClick={() => setShowModal(false)}
+						>
+							Затвори ✨
+						</button>
+					</div>
+				</div>
+			)}
+		</div>
 	);
 }
