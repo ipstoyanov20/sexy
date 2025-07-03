@@ -15,6 +15,7 @@ export default function Home() {
 	const [galleryImages, setGalleryImages] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [uploading, setUploading] = useState(false);
+	const [error, setError] = useState(null);
 	const audioRef = useRef(null);
 	const fileInputRef = useRef(null);
 
@@ -41,6 +42,12 @@ export default function Home() {
 	const loadGalleryFromDatabase = async () => {
 		try {
 			setLoading(true);
+			setError(null);
+			
+			if (!supabase) {
+				throw new Error('Supabase client is not initialized');
+			}
+
 			const { data, error } = await supabase
 				.from('gallery_images')
 				.select('*')
@@ -48,6 +55,7 @@ export default function Home() {
 
 			if (error) {
 				console.error('Error loading gallery:', error);
+				setError('Грешка при зареждане на галерията: ' + error.message);
 				return;
 			}
 
@@ -63,6 +71,7 @@ export default function Home() {
 			setGalleryImages(formattedImages);
 		} catch (error) {
 			console.error('Error loading gallery:', error);
+			setError('Грешка при зареждане на галерията: ' + error.message);
 		} finally {
 			setLoading(false);
 		}
@@ -72,6 +81,12 @@ export default function Home() {
 	const saveImageToDatabase = async (imageData) => {
 		try {
 			setUploading(true);
+			setError(null);
+			
+			if (!supabase) {
+				throw new Error('Supabase client is not initialized');
+			}
+
 			const { data, error } = await supabase
 				.from('gallery_images')
 				.insert([imageData])
@@ -79,14 +94,14 @@ export default function Home() {
 
 			if (error) {
 				console.error('Error saving image:', error);
-				alert('Грешка при качване на снимката. Моля опитайте отново.');
+				setError('Грешка при качване на снимката: ' + error.message);
 				return false;
 			}
 
 			return true;
 		} catch (error) {
 			console.error('Error saving image:', error);
-			alert('Грешка при качване на снимката. Моля опитайте отново.');
+			setError('Грешка при качване на снимката: ' + error.message);
 			return false;
 		} finally {
 			setUploading(false);
@@ -96,6 +111,10 @@ export default function Home() {
 	// Delete image from Supabase
 	const deleteImageFromDatabase = async (imageId) => {
 		try {
+			if (!supabase) {
+				throw new Error('Supabase client is not initialized');
+			}
+
 			const { error } = await supabase
 				.from('gallery_images')
 				.delete()
@@ -103,14 +122,14 @@ export default function Home() {
 
 			if (error) {
 				console.error('Error deleting image:', error);
-				alert('Грешка при изтриване на снимката. Моля опитайте отново.');
+				setError('Грешка при изтриване на снимката: ' + error.message);
 				return false;
 			}
 
 			return true;
 		} catch (error) {
 			console.error('Error deleting image:', error);
-			alert('Грешка при изтриване на снимката. Моля опитайте отново.');
+			setError('Грешка при изтриване на снимката: ' + error.message);
 			return false;
 		}
 	};
@@ -168,6 +187,18 @@ export default function Home() {
 	const handleImageUpload = async (event) => {
 		const file = event.target.files[0];
 		if (file) {
+			// Validate file size (max 5MB)
+			if (file.size > 5 * 1024 * 1024) {
+				setError('Файлът е твърде голям. Максималният размер е 5MB.');
+				return;
+			}
+
+			// Validate file type
+			if (!file.type.startsWith('image/')) {
+				setError('Моля изберете валиден файл с изображение.');
+				return;
+			}
+
 			// Get current date and time
 			const now = new Date();
 			const date = now.toISOString().split("T")[0]; // YYYY-MM-DD format
@@ -193,6 +224,10 @@ export default function Home() {
 				}
 			};
 
+			reader.onerror = () => {
+				setError('Грешка при четене на файла.');
+			};
+
 			reader.readAsDataURL(file);
 		}
 		// Reset the input so the same file can be selected again
@@ -201,6 +236,7 @@ export default function Home() {
 
 	const handleAddPhotoClick = () => {
 		if (uploading) return;
+		setError(null); // Clear any previous errors
 		fileInputRef.current?.click();
 	};
 
@@ -299,6 +335,19 @@ export default function Home() {
 			<h2 className="font-bold text-2xl sm:text-3xl md:text-4xl text-center text-black mb-8 sm:mb-12">
 				📸 Споделена галерия ❤️
 			</h2>
+			
+			{/* Error Display */}
+			{error && (
+				<div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6 text-center">
+					<p className="font-medium">⚠️ {error}</p>
+					<button 
+						onClick={() => setError(null)}
+						className="mt-2 text-sm underline hover:no-underline"
+					>
+						Затвори
+					</button>
+				</div>
+			)}
 			
 			{/* Hidden file input */}
 			<input
