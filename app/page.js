@@ -16,6 +16,9 @@ export default function Home() {
 	const [loading, setLoading] = useState(false);
 	const [uploading, setUploading] = useState(false);
 	const [error, setError] = useState(null);
+	const [showRenameModal, setShowRenameModal] = useState(false);
+	const [pendingFile, setPendingFile] = useState(null);
+	const [newImageName, setNewImageName] = useState("");
 	const audioRef = useRef(null);
 	const fileInputRef = useRef(null);
 
@@ -199,39 +202,63 @@ export default function Home() {
 				return;
 			}
 
-			// Get current date and time
-			const now = new Date();
-			const date = now.toISOString().split("T")[0]; // YYYY-MM-DD format
-			const time = now.toLocaleTimeString('bg-BG', { 
-				hour: '2-digit', 
-				minute: '2-digit' 
-			}); // HH:MM format
-			
-			const reader = new FileReader();
-
-			reader.onloadend = async () => {
-				const imageData = {
-					title: file.name.replace(/\.[^/.]+$/, ""), // Remove file extension
-					image_data: reader.result,
-					date_taken: date,
-					time_taken: time
-				};
-
-				const success = await saveImageToDatabase(imageData);
-				if (success) {
-					// Reload gallery to show the new image
-					await loadGalleryFromDatabase();
-				}
-			};
-
-			reader.onerror = () => {
-				setError('Грешка при четене на файла.');
-			};
-
-			reader.readAsDataURL(file);
+			// Set default name from file name (without extension)
+			const defaultName = file.name.replace(/\.[^/.]+$/, "");
+			setNewImageName(defaultName);
+			setPendingFile(file);
+			setShowRenameModal(true);
 		}
 		// Reset the input so the same file can be selected again
 		event.target.value = '';
+	};
+
+	const handleConfirmUpload = async () => {
+		if (!pendingFile || !newImageName.trim()) {
+			setError('Моля въведете име за снимката.');
+			return;
+		}
+
+		// Get current date and time
+		const now = new Date();
+		const date = now.toISOString().split("T")[0]; // YYYY-MM-DD format
+		const time = now.toLocaleTimeString('bg-BG', { 
+			hour: '2-digit', 
+			minute: '2-digit' 
+		}); // HH:MM format
+		
+		const reader = new FileReader();
+
+		reader.onloadend = async () => {
+			const imageData = {
+				title: newImageName.trim(),
+				image_data: reader.result,
+				date_taken: date,
+				time_taken: time
+			};
+
+			const success = await saveImageToDatabase(imageData);
+			if (success) {
+				// Reload gallery to show the new image
+				await loadGalleryFromDatabase();
+				// Close modal and reset state
+				setShowRenameModal(false);
+				setPendingFile(null);
+				setNewImageName("");
+			}
+		};
+
+		reader.onerror = () => {
+			setError('Грешка при четене на файла.');
+		};
+
+		reader.readAsDataURL(pendingFile);
+	};
+
+	const handleCancelUpload = () => {
+		setShowRenameModal(false);
+		setPendingFile(null);
+		setNewImageName("");
+		setError(null);
 	};
 
 	const handleAddPhotoClick = () => {
@@ -560,7 +587,71 @@ export default function Home() {
 				{activeSection === "гадина" && renderSnakeSection()}
 			</main>
 
-			{/* Modal */}
+			{/* Rename Modal */}
+			{showRenameModal && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+					<div className="bg-white rounded-2xl p-6 sm:p-8 flex flex-col max-w-md w-full mx-4 shadow-2xl">
+						<h2 className="text-xl sm:text-2xl mb-4 font-semibold text-gray-800 text-center">
+							📝 Име на снимката
+						</h2>
+						
+						{/* Preview of selected image */}
+						{pendingFile && (
+							<div className="w-32 h-32 mx-auto mb-4 rounded-xl overflow-hidden bg-gray-100">
+								<img
+									src={URL.createObjectURL(pendingFile)}
+									alt="Preview"
+									className="w-full h-full object-cover"
+								/>
+							</div>
+						)}
+						
+						<div className="mb-6">
+							<label htmlFor="imageName" className="block text-sm font-medium text-gray-700 mb-2">
+								Въведете име за снимката:
+							</label>
+							<input
+								id="imageName"
+								type="text"
+								value={newImageName}
+								onChange={(e) => setNewImageName(e.target.value)}
+								placeholder="Например: Красива снимка"
+								className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none transition-colors"
+								maxLength={100}
+								autoFocus
+							/>
+							<p className="text-xs text-gray-500 mt-1">
+								{newImageName.length}/100 символа
+							</p>
+						</div>
+						
+						{error && (
+							<div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded-lg mb-4 text-sm">
+								⚠️ {error}
+							</div>
+						)}
+						
+						<div className="flex gap-3">
+							<button
+								onClick={handleCancelUpload}
+								disabled={uploading}
+								className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 rounded-lg font-semibold transition-all duration-300"
+							>
+								Отказ
+							</button>
+							<button
+								onClick={handleConfirmUpload}
+								disabled={uploading || !newImageName.trim()}
+								className="flex-1 px-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl"
+							>
+								{uploading ? "Качване..." : "Качи ✨"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Game Result Modal */}
 			{showModal && selectedImage && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
 					<div className="bg-white rounded-2xl p-6 sm:p-8 flex flex-col items-center max-w-sm sm:max-w-md w-full mx-4 shadow-2xl">
