@@ -43,13 +43,48 @@ export default function Home() {
 		return shuffled;
 	}
 
-	// Initial shuffle + blur on refresh
+	// Load gallery images from localStorage
+	const loadGalleryFromStorage = () => {
+		try {
+			const savedImages = localStorage.getItem('galleryImages');
+			if (savedImages) {
+				const parsedImages = JSON.parse(savedImages);
+				// Merge default images with saved uploaded images
+				const uploadedImages = parsedImages.filter(img => img.id > 6);
+				return [...uploadedImages, ...defaultGalleryImages];
+			}
+			return defaultGalleryImages;
+		} catch (error) {
+			console.error('Error loading gallery from storage:', error);
+			return defaultGalleryImages;
+		}
+	};
+
+	// Save gallery images to localStorage
+	const saveGalleryToStorage = (images) => {
+		try {
+			// Only save uploaded images (id > 6) to localStorage
+			const uploadedImages = images.filter(img => img.id > 6);
+			localStorage.setItem('galleryImages', JSON.stringify(uploadedImages));
+		} catch (error) {
+			console.error('Error saving gallery to storage:', error);
+		}
+	};
+
+	// Initial shuffle + blur on refresh + load gallery
 	useEffect(() => {
 		setShuffledImages(shuffleArray(images));
-		setGalleryImages(defaultGalleryImages);
+		setGalleryImages(loadGalleryFromStorage());
 		const timer = setTimeout(() => setShowBlur(false), 500);
 		return () => clearTimeout(timer);
 	}, []);
+
+	// Save to localStorage whenever galleryImages changes
+	useEffect(() => {
+		if (galleryImages.length > 0) {
+			saveGalleryToStorage(galleryImages);
+		}
+	}, [galleryImages]);
 
 	// Setup modal sound
 	useEffect(() => {
