@@ -90,6 +90,16 @@ export default function Home() {
 				throw new Error('Supabase client is not initialized');
 			}
 
+			// Validate that all required fields are present
+			if (!imageData.title || !imageData.image_data || !imageData.date_taken) {
+				throw new Error('Missing required image data');
+			}
+
+			// Ensure image_data is a valid data URL
+			if (!imageData.image_data.startsWith('data:image/')) {
+				throw new Error('Invalid image data format');
+			}
+
 			const { data, error } = await supabase
 				.from('gallery_images')
 				.insert([imageData])
@@ -218,23 +228,60 @@ export default function Home() {
 			return;
 		}
 
-		// Get current date and time
-		const now = new Date();
-		const date = now.toISOString().split("T")[0]; // YYYY-MM-DD format
-		const time = now.toLocaleTimeString('bg-BG', { 
-			hour: '2-digit', 
-			minute: '2-digit' 
-		}); // HH:MM format
-		
-		const reader = new FileReader();
+		try {
+			setUploading(true);
+			setError(null);
 
-		reader.onloadend = async () => {
+			// Get current date and time
+			const now = new Date();
+			const date = now.toISOString().split("T")[0]; // YYYY-MM-DD format
+			const time = now.toLocaleTimeString('bg-BG', { 
+				hour: '2-digit', 
+				minute: '2-digit' 
+			}); // HH:MM format
+
+			// Create a promise to handle FileReader
+			const readFileAsDataURL = (file) => {
+				return new Promise((resolve, reject) => {
+					const reader = new FileReader();
+					
+					reader.onload = (event) => {
+						const result = event.target.result;
+						if (result && typeof result === 'string' && result.startsWith('data:image/')) {
+							resolve(result);
+						} else {
+							reject(new Error('Failed to read file as data URL'));
+						}
+					};
+					
+					reader.onerror = () => {
+						reject(new Error('Error reading file'));
+					};
+					
+					reader.onabort = () => {
+						reject(new Error('File reading was aborted'));
+					};
+
+					// Use readAsDataURL to convert to base64
+					reader.readAsDataURL(file);
+				});
+			};
+
+			// Read the file
+			const imageDataUrl = await readFileAsDataURL(pendingFile);
+
+			// Prepare image data
 			const imageData = {
 				title: newImageName.trim(),
-				image_data: reader.result,
+				image_data: imageDataUrl,
 				date_taken: date,
 				time_taken: time
 			};
+
+			// Validate the data before saving
+			if (!imageData.title || !imageData.image_data || !imageData.date_taken) {
+				throw new Error('Missing required image data');
+			}
 
 			const success = await saveImageToDatabase(imageData);
 			if (success) {
@@ -245,13 +292,12 @@ export default function Home() {
 				setPendingFile(null);
 				setNewImageName("");
 			}
-		};
-
-		reader.onerror = () => {
-			setError('Грешка при четене на файла.');
-		};
-
-		reader.readAsDataURL(pendingFile);
+		} catch (error) {
+			console.error('Error processing file:', error);
+			setError('Грешка при обработка на файла: ' + error.message);
+		} finally {
+			setUploading(false);
+		}
 	};
 
 	const handleCancelUpload = () => {
