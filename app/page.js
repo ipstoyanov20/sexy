@@ -11,7 +11,9 @@ export default function Home() {
 	const [processing, setProcessing] = useState(false);
 	const [activeSection, setActiveSection] = useState("играй");
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+	const [galleryImages, setGalleryImages] = useState([]);
 	const audioRef = useRef(null);
+	const fileInputRef = useRef(null);
 
 	const images = [
 		"/kamasutra.png",
@@ -22,13 +24,13 @@ export default function Home() {
 		"/doggy2.png",
 	];
 
-	const galleryImages = [
-		{ src: "/kamasutra.png", date: "2024-01-15", title: "Класическа поза" },
-		{ src: "/chair.webp", date: "2024-01-20", title: "Стол варианция" },
-		{ src: "/doggy.png", date: "2024-02-01", title: "Догги стил" },
-		{ src: "/lizane.webp", date: "2024-02-10", title: "Интимна близост" },
-		{ src: "/mis.png", date: "2024-02-15", title: "Мисионерска" },
-		{ src: "/doggy2.png", date: "2024-03-01", title: "Алтернативен догги" },
+	const defaultGalleryImages = [
+		{ src: "/kamasutra.png", date: "2024-01-15", title: "Класическа поза", id: 1 },
+		{ src: "/chair.webp", date: "2024-01-20", title: "Стол варианция", id: 2 },
+		{ src: "/doggy.png", date: "2024-02-01", title: "Догги стил", id: 3 },
+		{ src: "/lizane.webp", date: "2024-02-10", title: "Интимна близост", id: 4 },
+		{ src: "/mis.png", date: "2024-02-15", title: "Мисионерска", id: 5 },
+		{ src: "/doggy2.png", date: "2024-03-01", title: "Алтернативен догги", id: 6 },
 	];
 
 	// Fisher-Yates Shuffle
@@ -44,6 +46,7 @@ export default function Home() {
 	// Initial shuffle + blur on refresh
 	useEffect(() => {
 		setShuffledImages(shuffleArray(images));
+		setGalleryImages(defaultGalleryImages);
 		const timer = setTimeout(() => setShowBlur(false), 500);
 		return () => clearTimeout(timer);
 	}, []);
@@ -93,18 +96,43 @@ export default function Home() {
 	const handleImageUpload = (event) => {
 		const file = event.target.files[0];
 		if (file) {
-			const date = new Date().toISOString().split("T")[0]; // Using current date
+			// Get current date and time
+			const now = new Date();
+			const date = now.toISOString().split("T")[0]; // YYYY-MM-DD format
+			const time = now.toLocaleTimeString('bg-BG', { 
+				hour: '2-digit', 
+				minute: '2-digit' 
+			}); // HH:MM format
+			
 			const reader = new FileReader();
 
 			reader.onloadend = () => {
-				setGalleryImages((prevImages) => [
-					...prevImages,
-					{ src: reader.result, date, title: file.name },
-				]);
+				const newImage = {
+					src: reader.result,
+					date: date,
+					time: time,
+					title: file.name.replace(/\.[^/.]+$/, ""), // Remove file extension
+					id: Date.now(), // Unique ID based on timestamp
+					uploadedAt: now.toLocaleString('bg-BG')
+				};
+
+				setGalleryImages((prevImages) => [newImage, ...prevImages]);
 			};
 
 			reader.readAsDataURL(file);
 		}
+		// Reset the input so the same file can be selected again
+		event.target.value = '';
+	};
+
+	const handleAddPhotoClick = () => {
+		fileInputRef.current?.click();
+	};
+
+	const handleDeleteImage = (imageId) => {
+		setGalleryImages((prevImages) => 
+			prevImages.filter(img => img.id !== imageId)
+		);
 	};
 
 	const renderGameSection = () => (
@@ -190,18 +218,46 @@ export default function Home() {
 			<h2 className="font-bold text-2xl sm:text-3xl md:text-4xl text-center text-black mb-8 sm:mb-12">
 				📸 Галерия с дати ❤️
 			</h2>
+			
+			{/* Hidden file input */}
 			<input
+				ref={fileInputRef}
 				type="file"
 				accept="image/*"
 				onChange={handleImageUpload}
-				className="mb-4"
+				className="hidden"
 			/>
+			
+			{/* Add Photo Button */}
+			<div className="flex justify-center mb-8">
+				<button
+					onClick={handleAddPhotoClick}
+					className="bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 hover:from-pink-600 hover:via-purple-600 hover:to-pink-700 text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center gap-3 text-base sm:text-lg"
+				>
+					<span className="text-xl">📷</span>
+					Добави снимка
+					<span className="text-xl">✨</span>
+				</button>
+			</div>
+
+			{/* Gallery Grid */}
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
-				{galleryImages.map((item, index) => (
+				{galleryImages.map((item) => (
 					<div
-						key={index}
-						className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2"
+						key={item.id}
+						className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 relative group"
 					>
+						{/* Delete button for uploaded images */}
+						{item.id > 6 && (
+							<button
+								onClick={() => handleDeleteImage(item.id)}
+								className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
+								title="Изтрий снимката"
+							>
+								×
+							</button>
+						)}
+						
 						<div className="aspect-square rounded-xl overflow-hidden mb-4 bg-gradient-to-br from-pink-100 to-purple-100">
 							<Image
 								src={item.src}
@@ -211,13 +267,42 @@ export default function Home() {
 								className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
 							/>
 						</div>
-						<h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">
+						
+						<h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base line-clamp-2">
 							{item.title}
 						</h3>
-						<p className="text-gray-600 text-xs sm:text-sm">📅 {item.date}</p>
+						
+						<div className="space-y-1">
+							<p className="text-gray-600 text-xs sm:text-sm flex items-center gap-1">
+								<span>📅</span> {item.date}
+							</p>
+							{item.time && (
+								<p className="text-gray-600 text-xs sm:text-sm flex items-center gap-1">
+									<span>🕐</span> {item.time}
+								</p>
+							)}
+							{item.uploadedAt && (
+								<p className="text-gray-500 text-xs flex items-center gap-1">
+									<span>⬆️</span> {item.uploadedAt}
+								</p>
+							)}
+						</div>
 					</div>
 				))}
 			</div>
+
+			{galleryImages.length === 0 && (
+				<div className="text-center py-12">
+					<div className="text-6xl mb-4">📷</div>
+					<p className="text-gray-600 text-lg mb-6">Все още няма снимки в галерията</p>
+					<button
+						onClick={handleAddPhotoClick}
+						className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300"
+					>
+						Добави първата снимка ✨
+					</button>
+				</div>
+			)}
 		</div>
 	);
 
