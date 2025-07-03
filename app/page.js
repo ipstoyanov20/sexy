@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "../lib/supabase";
 
 export default function Home() {
 	const [isSpinning, setIsSpinning] = useState(false);
@@ -12,6 +13,8 @@ export default function Home() {
 	const [activeSection, setActiveSection] = useState("играй");
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [galleryImages, setGalleryImages] = useState([]);
+	const [loading, setLoading] = useState(false);
+	const [uploading, setUploading] = useState(false);
 	const audioRef = useRef(null);
 	const fileInputRef = useRef(null);
 
@@ -34,42 +37,91 @@ export default function Home() {
 		return shuffled;
 	}
 
-	// Load gallery images from localStorage
-	const loadGalleryFromStorage = () => {
+	// Load gallery images from Supabase
+	const loadGalleryFromDatabase = async () => {
 		try {
-			const savedImages = localStorage.getItem('galleryImages');
-			if (savedImages) {
-				const parsedImages = JSON.parse(savedImages);
-				return parsedImages;
+			setLoading(true);
+			const { data, error } = await supabase
+				.from('gallery_images')
+				.select('*')
+				.order('uploaded_at', { ascending: false });
+
+			if (error) {
+				console.error('Error loading gallery:', error);
+				return;
 			}
-			return [];
+
+			const formattedImages = data.map(item => ({
+				id: item.id,
+				src: item.image_data,
+				title: item.title,
+				date: item.date_taken,
+				time: item.time_taken,
+				uploadedAt: new Date(item.uploaded_at).toLocaleString('bg-BG')
+			}));
+
+			setGalleryImages(formattedImages);
 		} catch (error) {
-			console.error('Error loading gallery from storage:', error);
-			return [];
+			console.error('Error loading gallery:', error);
+		} finally {
+			setLoading(false);
 		}
 	};
 
-	// Save gallery images to localStorage
-	const saveGalleryToStorage = (images) => {
+	// Save image to Supabase
+	const saveImageToDatabase = async (imageData) => {
 		try {
-			localStorage.setItem('galleryImages', JSON.stringify(images));
+			setUploading(true);
+			const { data, error } = await supabase
+				.from('gallery_images')
+				.insert([imageData])
+				.select();
+
+			if (error) {
+				console.error('Error saving image:', error);
+				alert('Грешка при качване на снимката. Моля опитайте отново.');
+				return false;
+			}
+
+			return true;
 		} catch (error) {
-			console.error('Error saving gallery to storage:', error);
+			console.error('Error saving image:', error);
+			alert('Грешка при качване на снимката. Моля опитайте отново.');
+			return false;
+		} finally {
+			setUploading(false);
+		}
+	};
+
+	// Delete image from Supabase
+	const deleteImageFromDatabase = async (imageId) => {
+		try {
+			const { error } = await supabase
+				.from('gallery_images')
+				.delete()
+				.eq('id', imageId);
+
+			if (error) {
+				console.error('Error deleting image:', error);
+				alert('Грешка при изтриване на снимката. Моля опитайте отново.');
+				return false;
+			}
+
+			return true;
+		} catch (error) {
+			console.error('Error deleting image:', error);
+			alert('Грешка при изтриване на снимката. Моля опитайте отново.');
+			return false;
 		}
 	};
 
 	// Initial shuffle + blur on refresh + load gallery
 	useEffect(() => {
 		setShuffledImages(shuffleArray(images));
-		setGalleryImages(loadGalleryFromStorage());
+		loadGalleryFromDatabase();
 		const timer = setTimeout(() => setShowBlur(false), 500);
 		return () => clearTimeout(timer);
 	}, []);
-
-	// Save to localStorage whenever galleryImages changes
-	useEffect(() => {
-		saveGalleryToStorage(galleryImages);
-	}, [galleryImages]);
 
 	// Setup modal sound
 	useEffect(() => {
@@ -113,7 +165,7 @@ export default function Home() {
 		}, 3000);
 	}
 
-	const handleImageUpload = (event) => {
+	const handleImageUpload = async (event) => {
 		const file = event.target.files[0];
 		if (file) {
 			// Get current date and time
@@ -126,17 +178,19 @@ export default function Home() {
 			
 			const reader = new FileReader();
 
-			reader.onloadend = () => {
-				const newImage = {
-					src: reader.result,
-					date: date,
-					time: time,
+			reader.onloadend = async () => {
+				const imageData = {
 					title: file.name.replace(/\.[^/.]+$/, ""), // Remove file extension
-					id: Date.now(), // Unique ID based on timestamp
-					uploadedAt: now.toLocaleString('bg-BG')
+					image_data: reader.result,
+					date_taken: date,
+					time_taken: time
 				};
 
-				setGalleryImages((prevImages) => [newImage, ...prevImages]);
+				const success = await saveImageToDatabase(imageData);
+				if (success) {
+					// Reload gallery to show the new image
+					await loadGalleryFromDatabase();
+				}
 			};
 
 			reader.readAsDataURL(file);
@@ -146,13 +200,20 @@ export default function Home() {
 	};
 
 	const handleAddPhotoClick = () => {
+		if (uploading) return;
 		fileInputRef.current?.click();
 	};
 
-	const handleDeleteImage = (imageId) => {
-		setGalleryImages((prevImages) => 
-			prevImages.filter(img => img.id !== imageId)
-		);
+	const handleDeleteImage = async (imageId) => {
+		if (window.confirm('Сигурни ли сте, че искате да изтриете тази снимка?')) {
+			const success = await deleteImageFromDatabase(imageId);
+			if (success) {
+				// Remove from local state
+				setGalleryImages((prevImages) => 
+					prevImages.filter(img => img.id !== imageId)
+				);
+			}
+		}
 	};
 
 	const renderGameSection = () => (
@@ -236,7 +297,7 @@ export default function Home() {
 	const renderGallerySection = () => (
 		<div className="w-full max-w-6xl mx-auto px-4">
 			<h2 className="font-bold text-2xl sm:text-3xl md:text-4xl text-center text-black mb-8 sm:mb-12">
-				📸 Галерия с дати ❤️
+				📸 Споделена галерия ❤️
 			</h2>
 			
 			{/* Hidden file input */}
@@ -246,22 +307,32 @@ export default function Home() {
 				accept="image/*"
 				onChange={handleImageUpload}
 				className="hidden"
+				disabled={uploading}
 			/>
 			
 			{/* Add Photo Button */}
 			<div className="flex justify-center mb-8">
 				<button
 					onClick={handleAddPhotoClick}
-					className="bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 hover:from-pink-600 hover:via-purple-600 hover:to-pink-700 text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center gap-3 text-base sm:text-lg"
+					disabled={uploading}
+					className="bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 hover:from-pink-600 hover:via-purple-600 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center gap-3 text-base sm:text-lg"
 				>
 					<span className="text-xl">📷</span>
-					Добави снимка
+					{uploading ? "Качване..." : "Добави снимка"}
 					<span className="text-xl">✨</span>
 				</button>
 			</div>
 
+			{/* Loading State */}
+			{loading && (
+				<div className="flex justify-center items-center py-16">
+					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+					<span className="ml-3 text-gray-600">Зареждане на галерията...</span>
+				</div>
+			)}
+
 			{/* Gallery Content */}
-			{galleryImages.length === 0 ? (
+			{!loading && galleryImages.length === 0 ? (
 				// Placeholder when no images
 				<div className="flex flex-col items-center justify-center py-16 sm:py-24">
 					<div className="bg-white rounded-3xl p-8 sm:p-12 shadow-2xl max-w-md w-full mx-4 text-center">
@@ -272,17 +343,18 @@ export default function Home() {
 							Празна галерия
 						</h3>
 						<p className="text-gray-600 text-base sm:text-lg mb-6 leading-relaxed">
-							Все още няма снимки в галерията. Добави първата си снимка, за да започнеш да създаваш спомени! ✨
+							Все още няма снимки в споделената галерия. Добави първата снимка, която всички ще могат да видят! ✨
 						</p>
 						<button
 							onClick={handleAddPhotoClick}
-							className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-lg"
+							disabled={uploading}
+							className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-lg"
 						>
-							Добави първата снимка 🎉
+							{uploading ? "Качване..." : "Добави първата снимка 🎉"}
 						</button>
 					</div>
 				</div>
-			) : (
+			) : !loading && (
 				// Gallery Grid
 				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
 					{galleryImages.map((item) => (
