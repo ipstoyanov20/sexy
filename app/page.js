@@ -24,15 +24,6 @@ export default function Home() {
 		"/doggy2.png",
 	];
 
-	const defaultGalleryImages = [
-		{ src: "/kamasutra.png", date: "2024-01-15", title: "Класическа поза", id: 1 },
-		{ src: "/chair.webp", date: "2024-01-20", title: "Стол варианция", id: 2 },
-		{ src: "/doggy.png", date: "2024-02-01", title: "Догги стил", id: 3 },
-		{ src: "/lizane.webp", date: "2024-02-10", title: "Интимна близост", id: 4 },
-		{ src: "/mis.png", date: "2024-02-15", title: "Мисионерска", id: 5 },
-		{ src: "/doggy2.png", date: "2024-03-01", title: "Алтернативен догги", id: 6 },
-	];
-
 	// Fisher-Yates Shuffle
 	function shuffleArray(arr) {
 		const shuffled = [...arr];
@@ -49,23 +40,19 @@ export default function Home() {
 			const savedImages = localStorage.getItem('galleryImages');
 			if (savedImages) {
 				const parsedImages = JSON.parse(savedImages);
-				// Merge default images with saved uploaded images
-				const uploadedImages = parsedImages.filter(img => img.id > 6);
-				return [...uploadedImages, ...defaultGalleryImages];
+				return parsedImages;
 			}
-			return defaultGalleryImages;
+			return [];
 		} catch (error) {
 			console.error('Error loading gallery from storage:', error);
-			return defaultGalleryImages;
+			return [];
 		}
 	};
 
 	// Save gallery images to localStorage
 	const saveGalleryToStorage = (images) => {
 		try {
-			// Only save uploaded images (id > 6) to localStorage
-			const uploadedImages = images.filter(img => img.id > 6);
-			localStorage.setItem('galleryImages', JSON.stringify(uploadedImages));
+			localStorage.setItem('galleryImages', JSON.stringify(images));
 		} catch (error) {
 			console.error('Error saving gallery to storage:', error);
 		}
@@ -81,9 +68,7 @@ export default function Home() {
 
 	// Save to localStorage whenever galleryImages changes
 	useEffect(() => {
-		if (galleryImages.length > 0) {
-			saveGalleryToStorage(galleryImages);
-		}
+		saveGalleryToStorage(galleryImages);
 	}, [galleryImages]);
 
 	// Setup modal sound
@@ -275,67 +260,76 @@ export default function Home() {
 				</button>
 			</div>
 
-			{/* Gallery Grid */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
-				{galleryImages.map((item) => (
-					<div
-						key={item.id}
-						className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 relative group"
-					>
-						{/* Delete button for uploaded images */}
-						{item.id > 6 && (
+			{/* Gallery Content */}
+			{galleryImages.length === 0 ? (
+				// Placeholder when no images
+				<div className="flex flex-col items-center justify-center py-16 sm:py-24">
+					<div className="bg-white rounded-3xl p-8 sm:p-12 shadow-2xl max-w-md w-full mx-4 text-center">
+						<div className="w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-6 bg-gradient-to-br from-pink-100 to-purple-100 rounded-2xl flex items-center justify-center">
+							<div className="text-6xl sm:text-7xl animate-pulse">📷</div>
+						</div>
+						<h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">
+							Празна галерия
+						</h3>
+						<p className="text-gray-600 text-base sm:text-lg mb-6 leading-relaxed">
+							Все още няма снимки в галерията. Добави първата си снимка, за да започнеш да създаваш спомени! ✨
+						</p>
+						<button
+							onClick={handleAddPhotoClick}
+							className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-lg"
+						>
+							Добави първата снимка 🎉
+						</button>
+					</div>
+				</div>
+			) : (
+				// Gallery Grid
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+					{galleryImages.map((item) => (
+						<div
+							key={item.id}
+							className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 relative group"
+						>
+							{/* Delete button */}
 							<button
 								onClick={() => handleDeleteImage(item.id)}
-								className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
+								className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 text-sm font-bold"
 								title="Изтрий снимката"
 							>
 								×
 							</button>
-						)}
-						
-						<div className="aspect-square rounded-xl overflow-hidden mb-4 bg-gradient-to-br from-pink-100 to-purple-100">
-							<Image
-								src={item.src}
-								alt={item.title}
-								width={300}
-								height={300}
-								className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-							/>
-						</div>
-						
-						<h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base line-clamp-2">
-							{item.title}
-						</h3>
-						
-						<div className="space-y-1">
-							<p className="text-gray-600 text-xs sm:text-sm flex items-center gap-1">
-								<span>📅</span> {item.date}
-							</p>
-							{item.time && (
+							
+							<div className="aspect-square rounded-xl overflow-hidden mb-4 bg-gradient-to-br from-pink-100 to-purple-100">
+								<Image
+									src={item.src}
+									alt={item.title}
+									width={300}
+									height={300}
+									className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+								/>
+							</div>
+							
+							<h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base line-clamp-2">
+								{item.title}
+							</h3>
+							
+							<div className="space-y-1">
 								<p className="text-gray-600 text-xs sm:text-sm flex items-center gap-1">
-									<span>🕐</span> {item.time}
+									<span>📅</span> {item.date}
 								</p>
-							)}
-							{item.uploadedAt && (
-								<p className="text-gray-500 text-xs flex items-center gap-1">
-									<span>⬆️</span> {item.uploadedAt}
-								</p>
-							)}
+								{item.time && (
+									<p className="text-gray-600 text-xs sm:text-sm flex items-center gap-1">
+										<span>🕐</span> {item.time}
+									</p>
+								)}
+								{item.uploadedAt && (
+									<p className="text-gray-500 text-xs flex items-center gap-1">
+										<span>⬆️</span> {item.uploadedAt}
+									</p>
+								)}
+							</div>
 						</div>
-					</div>
-				))}
-			</div>
-
-			{galleryImages.length === 0 && (
-				<div className="text-center py-12">
-					<div className="text-6xl mb-4">📷</div>
-					<p className="text-gray-600 text-lg mb-6">Все още няма снимки в галерията</p>
-					<button
-						onClick={handleAddPhotoClick}
-						className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300"
-					>
-						Добави първата снимка ✨
-					</button>
+					))}
 				</div>
 			)}
 		</div>
