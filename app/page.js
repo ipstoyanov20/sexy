@@ -198,11 +198,24 @@ export default function Home() {
 	}
 
 	const handleImageUpload = async (event) => {
+		// Clear any previous errors
+		setError(null);
+		
 		const file = event.target.files[0];
-		if (file) {
+		if (!file) {
+			return;
+		}
+
+		try {
 			// Validate file size (max 5MB)
 			if (file.size > 5 * 1024 * 1024) {
 				setError('Файлът е твърде голям. Максималният размер е 5MB.');
+				return;
+			}
+
+			// Additional validation for very small files
+			if (file.size < 100) {
+				setError('Файлът е твърде малък или повреден.');
 				return;
 			}
 
@@ -212,12 +225,23 @@ export default function Home() {
 				return;
 			}
 
+			// Additional MIME type validation for mobile
+			const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+			if (!allowedTypes.includes(file.type.toLowerCase())) {
+				setError('Неподдържан формат на изображение. Използвайте JPG, PNG, GIF или WebP.');
+				return;
+			}
+
 			// Set default name from file name (without extension)
-			const defaultName = file.name.replace(/\.[^/.]+$/, "");
+			const defaultName = file.name ? file.name.replace(/\.[^/.]+$/, "") : "Нова снимка";
 			setNewImageName(defaultName);
 			setPendingFile(file);
 			setShowRenameModal(true);
+		} catch (error) {
+			console.error('Error handling file selection:', error);
+			setError('Грешка при избор на файл: ' + error.message);
 		}
+		
 		// Reset the input so the same file can be selected again
 		event.target.value = '';
 	};
@@ -240,35 +264,83 @@ export default function Home() {
 				minute: '2-digit' 
 			}); // HH:MM format
 
-			// Create a promise to handle FileReader
+			// Create a more robust promise to handle FileReader with better mobile support
 			const readFileAsDataURL = (file) => {
 				return new Promise((resolve, reject) => {
+					// Check if FileReader is available
+					if (!window.FileReader) {
+						reject(new Error('FileReader не е поддържан от този браузър'));
+						return;
+					}
+
 					const reader = new FileReader();
+					let timeoutId;
+					
+					// Set a timeout for mobile devices that might be slow
+					timeoutId = setTimeout(() => {
+						reader.abort();
+						reject(new Error('Времето за четене на файла изтече. Моля опитайте отново.'));
+					}, 30000); // 30 second timeout
 					
 					reader.onload = (event) => {
+						clearTimeout(timeoutId);
 						const result = event.target.result;
-						if (result && typeof result === 'string' && result.startsWith('data:image/')) {
-							resolve(result);
-						} else {
-							reject(new Error('Failed to read file as data URL'));
+						
+						// More thorough validation
+						if (!result) {
+							reject(new Error('Файлът не може да бъде прочетен'));
+							return;
 						}
+						
+						if (typeof result !== 'string') {
+							reject(new Error('Неправилен формат на файла'));
+							return;
+						}
+						
+						if (!result.startsWith('data:image/')) {
+							reject(new Error('Файлът не е валидно изображение'));
+							return;
+						}
+						
+						// Check if the data URL is not too large (mobile memory constraints)
+						if (result.length > 10 * 1024 * 1024) { // 10MB limit for data URL
+							reject(new Error('Изображението е твърде голямо за обработка'));
+							return;
+						}
+						
+						resolve(result);
 					};
 					
-					reader.onerror = () => {
-						reject(new Error('Error reading file'));
+					reader.onerror = (error) => {
+						clearTimeout(timeoutId);
+						console.error('FileReader error:', error);
+						reject(new Error('Грешка при четене на файла. Моля опитайте отново.'));
 					};
 					
 					reader.onabort = () => {
-						reject(new Error('File reading was aborted'));
+						clearTimeout(timeoutId);
+						reject(new Error('Четенето на файла беше прекъснато'));
 					};
 
 					// Use readAsDataURL to convert to base64
-					reader.readAsDataURL(file);
+					try {
+						reader.readAsDataURL(file);
+					} catch (error) {
+						clearTimeout(timeoutId);
+						reject(new Error('Не може да се започне четенето на файла'));
+					}
 				});
 			};
 
-			// Read the file
-			const imageDataUrl = await readFileAsDataURL(pendingFile);
+			// Read the file with better error handling
+			let imageDataUrl;
+			try {
+				imageDataUrl = await readFileAsDataURL(pendingFile);
+			} catch (fileError) {
+				console.error('File reading error:', fileError);
+				setError(fileError.message);
+				return;
+			}
 
 			// Prepare image data
 			const imageData = {
@@ -426,10 +498,11 @@ export default function Home() {
 			<input
 				ref={fileInputRef}
 				type="file"
-				accept="image/*"
+				accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
 				onChange={handleImageUpload}
 				className="hidden"
 				disabled={uploading}
+				capture="environment"
 			/>
 			
 			{/* Add Photo Button */}
