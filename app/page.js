@@ -264,81 +264,83 @@ export default function Home() {
 				minute: '2-digit' 
 			}); // HH:MM format
 
-			// Create a more robust promise to handle FileReader with better mobile support
-			const readFileAsDataURL = (file) => {
-				return new Promise((resolve, reject) => {
-					// Check if FileReader is available
-					if (!window.FileReader) {
-						reject(new Error('FileReader не е поддържан от този браузър'));
-						return;
-					}
-
-					const reader = new FileReader();
-					let timeoutId;
-					
-					// Set a timeout for mobile devices that might be slow
-					timeoutId = setTimeout(() => {
-						reader.abort();
-						reject(new Error('Времето за четене на файла изтече. Моля опитайте отново.'));
-					}, 30000); // 30 second timeout
-					
-					reader.onload = (event) => {
-						clearTimeout(timeoutId);
-						const result = event.target.result;
-						
-						// More thorough validation
-						if (!result) {
-							reject(new Error('Файлът не може да бъде прочетен'));
-							return;
-						}
-						
-						if (typeof result !== 'string') {
-							reject(new Error('Неправилен формат на файла'));
-							return;
-						}
-						
-						if (!result.startsWith('data:image/')) {
-							reject(new Error('Файлът не е валидно изображение'));
-							return;
-						}
-						
-						// Check if the data URL is not too large (mobile memory constraints)
-						if (result.length > 10 * 1024 * 1024) { // 10MB limit for data URL
-							reject(new Error('Изображението е твърде голямо за обработка'));
-							return;
-						}
-						
-						resolve(result);
-					};
-					
-					reader.onerror = (error) => {
-						clearTimeout(timeoutId);
-						console.error('FileReader error:', error);
-						reject(new Error('Грешка при четене на файла. Моля опитайте отново.'));
-					};
-					
-					reader.onabort = () => {
-						clearTimeout(timeoutId);
-						reject(new Error('Четенето на файла беше прекъснато'));
-					};
-
-					// Use readAsDataURL to convert to base64
-					try {
-						reader.readAsDataURL(file);
-					} catch (error) {
-						clearTimeout(timeoutId);
-						reject(new Error('Не може да се започне четенето на файла'));
-					}
-				});
-			};
-
-			// Read the file with better error handling
+			// Simplified and more reliable file reading for mobile
 			let imageDataUrl;
 			try {
-				imageDataUrl = await readFileAsDataURL(pendingFile);
-			} catch (fileError) {
-				console.error('File reading error:', fileError);
-				setError(fileError.message);
+				// Create a canvas to resize image if needed (mobile optimization)
+				const canvas = document.createElement('canvas');
+				const ctx = canvas.getContext('2d');
+				const img = new Image();
+				
+				// Create object URL for the image
+				const objectUrl = URL.createObjectURL(pendingFile);
+				
+				imageDataUrl = await new Promise((resolve, reject) => {
+					const timeoutId = setTimeout(() => {
+						URL.revokeObjectURL(objectUrl);
+						reject(new Error('Времето за обработка на изображението изтече'));
+					}, 45000); // 45 second timeout for mobile
+					
+					img.onload = () => {
+						try {
+							clearTimeout(timeoutId);
+							URL.revokeObjectURL(objectUrl);
+							
+							// Calculate dimensions (max 1200px for mobile optimization)
+							const maxSize = 1200;
+							let { width, height } = img;
+							
+							if (width > maxSize || height > maxSize) {
+								if (width > height) {
+									height = (height * maxSize) / width;
+									width = maxSize;
+								} else {
+									width = (width * maxSize) / height;
+									height = maxSize;
+								}
+							}
+							
+							// Set canvas size
+							canvas.width = width;
+							canvas.height = height;
+							
+							// Draw and compress image
+							ctx.drawImage(img, 0, 0, width, height);
+							
+							// Convert to data URL with compression
+							const dataUrl = canvas.toDataURL('image/jpeg', 0.8); // 80% quality
+							
+							// Validate result
+							if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+								reject(new Error('Грешка при обработка на изображението'));
+								return;
+							}
+							
+							// Check size (mobile memory limit)
+							if (dataUrl.length > 8 * 1024 * 1024) { // 8MB limit
+								reject(new Error('Изображението е твърде голямо след обработка'));
+								return;
+							}
+							
+							resolve(dataUrl);
+						} catch (error) {
+							clearTimeout(timeoutId);
+							URL.revokeObjectURL(objectUrl);
+							reject(new Error('Грешка при обработка на изображението: ' + error.message));
+						}
+					};
+					
+					img.onerror = () => {
+						clearTimeout(timeoutId);
+						URL.revokeObjectURL(objectUrl);
+						reject(new Error('Не може да се зареди изображението'));
+					};
+					
+					img.src = objectUrl;
+				});
+			} catch (error) {
+				console.error('Image processing error:', error);
+				setError(error.message);
 				return;
 			}
 
