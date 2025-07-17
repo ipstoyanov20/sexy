@@ -229,6 +229,7 @@ export default function Home() {
                 <div className="text-sm text-gray-600 mb-3">
                   <p>📅 {image.date_taken}</p>
                   {image.time_taken && <p>🕐 {image.time_taken}</p>}
+                  }
                 </div>
                 <button
                   onClick={() => deleteImage(image.id)}
