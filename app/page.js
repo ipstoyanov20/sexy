@@ -239,22 +239,6 @@ export default function Home() {
 				return;
 			}
 			
-			// Check if file is readable (mobile browsers sometimes have issues)
-			try {
-				const testReader = new FileReader();
-				const testPromise = new Promise((resolve, reject) => {
-					testReader.onload = () => resolve(true);
-					testReader.onerror = () => reject(new Error('Cannot read file'));
-					testReader.onabort = () => reject(new Error('File reading aborted'));
-				});
-				
-				testReader.readAsArrayBuffer(file.slice(0, 100)); // Test read first 100 bytes
-				await testPromise;
-			} catch (testError) {
-				console.error('File test read failed:', testError);
-				setError('Файлът не може да бъде прочетен. Моля опитайте с друг файл.');
-				return;
-			}
 			// Set default name from file name (without extension)
 			const defaultName = file.name.replace(/\.[^/.]+$/, "");
 			setNewImageName(defaultName);
@@ -283,58 +267,8 @@ export default function Home() {
 				minute: '2-digit' 
 			}); // HH:MM format
 
-			// Create a promise to handle FileReader
-			const readFileAsDataURL = (file) => {
-				return new Promise((resolve, reject) => {
-					const reader = new FileReader();
-					
-					reader.onload = (event) => {
-						const result = event.target.result;
-						if (result && typeof result === 'string' && result.startsWith('data:image/')) {
-							resolve(result);
-						} else {
-							reject(new Error('Failed to read file as data URL'));
-						}
-					};
-					
-					reader.onerror = () => {
-						reject(new Error('Error reading file'));
-					};
-					
-					reader.onabort = () => {
-						reject(new Error('File reading was aborted'));
-					};
-
-					// Use readAsDataURL to convert to base64
-					reader.readAsDataURL(file);
-				});
-			};
-
-			// Read the file with timeout and better error handling
-			let imageDataUrl;
-			try {
-				// Add a timeout for file reading (30 seconds)
-				const fileReadPromise = readFileAsDataURL(pendingFile);
-				const timeoutPromise = new Promise((_, reject) => 
-					setTimeout(() => reject(new Error('File reading timeout')), 30000)
-				);
-				
-				imageDataUrl = await Promise.race([fileReadPromise, timeoutPromise]);
-				
-				// Additional validation for mobile browsers
-				if (!imageDataUrl || typeof imageDataUrl !== 'string') {
-					throw new Error('Invalid file data');
-				}
-				
-				// Check if the data URL is too large (mobile browsers have limits)
-				if (imageDataUrl.length > 10 * 1024 * 1024) { // 10MB limit for data URL
-					throw new Error('Файлът е твърде голям за обработка. Моля изберете по-малка снимка.');
-				}
-				
-			} catch (fileError) {
-				console.error('File reading error:', fileError);
-				throw new Error('Грешка при четене на файла: ' + fileError.message);
-			}
+			// Process and compress image for mobile compatibility
+			const imageDataUrl = await processImageForMobile(pendingFile);
 
 			// Prepare image data
 			const imageData = {
@@ -357,10 +291,6 @@ export default function Home() {
 				setShowRenameModal(false);
 				setPendingFile(null);
 				setNewImageName("");
-				// Clean up the object URL to prevent memory leaks
-				if (pendingFile) {
-					URL.revokeObjectURL(URL.createObjectURL(pendingFile));
-				}
 			}
 		} catch (error) {
 			console.error('Error processing file:', error);
@@ -393,6 +323,75 @@ export default function Home() {
 				);
 			}
 		}
+	};
+
+	// Process image for mobile compatibility
+	const processImageForMobile = async (file) => {
+		return new Promise((resolve, reject) => {
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d');
+			const img = new Image();
+			
+			img.onload = () => {
+				try {
+					// Calculate dimensions to keep image under reasonable size
+					let { width, height } = img;
+					const maxDimension = 1200; // Max width or height
+					
+					if (width > maxDimension || height > maxDimension) {
+						if (width > height) {
+							height = (height * maxDimension) / width;
+							width = maxDimension;
+						} else {
+							width = (width * maxDimension) / height;
+							height = maxDimension;
+						}
+					}
+					
+					canvas.width = width;
+					canvas.height = height;
+					
+					// Draw and compress
+					ctx.drawImage(img, 0, 0, width, height);
+					
+					// Convert to data URL with compression
+					const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+					
+					// Validate the result
+					if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+						throw new Error('Failed to process image');
+					}
+					
+					// Check size (mobile browsers have limits)
+					if (dataUrl.length > 8 * 1024 * 1024) { // 8MB limit
+						// Try with lower quality
+						const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+						if (compressedDataUrl.length > 8 * 1024 * 1024) {
+							throw new Error('Файлът е твърде голям дори след компресия. Моля изберете по-малка снимка.');
+						}
+						resolve(compressedDataUrl);
+					} else {
+						resolve(dataUrl);
+					}
+				} catch (error) {
+					reject(error);
+				}
+			};
+			
+			img.onerror = () => {
+				reject(new Error('Грешка при зареждане на изображението'));
+			};
+			
+			// Create object URL for the image
+			const objectUrl = URL.createObjectURL(file);
+			img.src = objectUrl;
+			
+			// Clean up object URL after loading
+			img.onload = (originalOnload => function() {
+				URL.revokeObjectURL(objectUrl);
+				return originalOnload.apply(this, arguments);
+			})(img.onload);
+		});
 	};
 
 	const renderGameSection = () => (
@@ -570,7 +569,16 @@ export default function Home() {
 									width={300}
 									height={300}
 									className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+									unoptimized={true}
+									onError={(e) => {
+										console.error('Gallery image failed to load:', item.id);
+										e.target.style.display = 'none';
+										e.target.nextSibling.style.display = 'flex';
+									}}
 								/>
+								<div className="w-full h-full hidden items-center justify-center text-gray-400 text-4xl">
+									📷
+								</div>
 							</div>
 							
 							<h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base line-clamp-2">
@@ -714,29 +722,7 @@ export default function Home() {
 						{/* Preview of selected image */}
 						{pendingFile && (
 							<div className="w-32 h-32 mx-auto mb-4 rounded-xl overflow-hidden bg-gray-100">
-								{(() => {
-									try {
-										const previewUrl = URL.createObjectURL(pendingFile);
-										return (
-											<img
-												src={previewUrl}
-												alt="Preview"
-												className="w-full h-full object-cover"
-												onError={(e) => {
-													console.error('Preview image failed to load');
-													e.target.style.display = 'none';
-												}}
-											/>
-										);
-									} catch (error) {
-										console.error('Failed to create object URL:', error);
-										return (
-											<div className="w-full h-full flex items-center justify-center text-gray-500">
-												📷
-											</div>
-										);
-									}
-								})()}
+								<ImagePreview file={pendingFile} />
 							</div>
 						)}
 						
@@ -811,5 +797,45 @@ export default function Home() {
 				</div>
 			)}
 		</div>
+	);
+}
+
+// Separate component for image preview to handle mobile issues
+function ImagePreview({ file }) {
+	const [previewUrl, setPreviewUrl] = useState(null);
+	const [error, setError] = useState(false);
+	
+	useEffect(() => {
+		if (!file) return;
+		
+		try {
+			const url = URL.createObjectURL(file);
+			setPreviewUrl(url);
+			
+			// Cleanup function
+			return () => {
+				URL.revokeObjectURL(url);
+			};
+		} catch (error) {
+			console.error('Failed to create preview URL:', error);
+			setError(true);
+		}
+	}, [file]);
+	
+	if (error || !previewUrl) {
+		return (
+			<div className="w-full h-full flex items-center justify-center text-gray-500 text-2xl">
+				📷
+			</div>
+		);
+	}
+	
+	return (
+		<img
+			src={previewUrl}
+			alt="Preview"
+			className="w-full h-full object-cover"
+			onError={() => setError(true)}
+		/>
 	);
 }
