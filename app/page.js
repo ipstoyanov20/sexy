@@ -252,43 +252,31 @@ export default function Home() {
 	const handleImageUpload = async (event) => {
 		const file = event.target.files[0];
 		if (file) {
-			// Clear any previous errors
-			setError(null);
-			
 			// Validate file size (max 5MB)
-			if (file.size > 10 * 1024 * 1024) { // Increased to 10MB for initial validation
-				setError('Файлът е твърде голям. Максималният размер е 10MB.');
+			if (file.size > 5 * 1024 * 1024) {
+				setError('Файлът е твърде голям. Максималният размер е 5MB.');
 				return;
 			}
 
-			// More comprehensive file type validation
+			// Validate file type
 			const validImageTypes = [
 				'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
 				'image/bmp', 'image/webp', 'image/svg+xml', 'image/tiff', 
-				'image/tif', 'image/ico', 'image/heic', 'image/heif',
-				'image/avif', 'image/jfif'
+				'image/tif', 'image/ico', 'image/heic', 'image/heif'
 			];
-			
-			const validExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg|tiff|tif|ico|heic|heif|avif|jfif)$/i;
 			
 			const isValidType = file.type.startsWith('image/') || 
 				validImageTypes.includes(file.type) ||
-				validExtensions.test(file.name);
+				/\.(jpg|jpeg|png|gif|bmp|webp|svg|tiff|tif|ico|heic|heif)$/i.test(file.name);
 			
 			if (!isValidType) {
 				setError('Моля изберете валиден файл с изображение.');
 				return;
 			}
 
-			// Additional validations
+			// Additional mobile-specific validations
 			if (file.size === 0) {
 				setError('Файлът е празен или повреден.');
-				return;
-			}
-			
-			// Check if file name is too long (can cause issues on some systems)
-			if (file.name.length > 255) {
-				setError('Името на файла е твърде дълго.');
 				return;
 			}
 			
@@ -312,8 +300,6 @@ export default function Home() {
 			setUploading(true);
 			setError(null);
 
-			console.log('Starting image processing for file:', pendingFile.name, 'Size:', pendingFile.size);
-			
 			// Get current date and time
 			const now = new Date();
 			const date = now.toISOString().split("T")[0]; // YYYY-MM-DD format
@@ -323,15 +309,7 @@ export default function Home() {
 			}); // HH:MM format
 
 			// Process and compress image for mobile compatibility
-			let imageDataUrl;
-			try {
-				imageDataUrl = await processImageForMobile(pendingFile);
-				console.log('Image processed successfully, final size:', imageDataUrl.length);
-			} catch (processingError) {
-				console.error('Image processing failed:', processingError);
-				setError(processingError.message || 'Грешка при обработка на изображението');
-				return;
-			}
+			const imageDataUrl = await processImageForMobile(pendingFile);
 
 			// Prepare image data
 			const imageData = {
@@ -354,11 +332,10 @@ export default function Home() {
 				setShowRenameModal(false);
 				setPendingFile(null);
 				setNewImageName("");
-				console.log('Image uploaded successfully');
 			}
 		} catch (error) {
 			console.error('Error processing file:', error);
-			setError('Грешка при качване: ' + (error.message || 'Неизвестна грешка'));
+			setError('Грешка при обработка на файла: ' + error.message);
 		} finally {
 			setUploading(false);
 		}
