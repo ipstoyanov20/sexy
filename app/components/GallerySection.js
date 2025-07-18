@@ -1,7 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import GalleryGrid from "./GalleryGrid";
 import ImageUploadModal from "./ImageUploadModal";
 import ErrorMessage from "./ErrorMessage";
+import { getMobileFileAccept, supportsCameraCapture, isMobile } from "../utils/mobileUtils";
 
 export default function GallerySection({ 
 	galleryImages, 
@@ -15,7 +16,15 @@ export default function GallerySection({
 	const [showRenameModal, setShowRenameModal] = useState(false);
 	const [pendingFile, setPendingFile] = useState(null);
 	const [newImageName, setNewImageName] = useState("");
+	const [cameraSupported, setCameraSupported] = useState(false);
+	const [mobileDevice, setMobileDevice] = useState(false);
 	const fileInputRef = useRef(null);
+	
+	// Check for mobile and camera support
+	useEffect(() => {
+		setMobileDevice(isMobile());
+		setCameraSupported(supportsCameraCapture());
+	}, []);
 
 	const handleImageUpload = async (event) => {
 		const file = event.target.files[0];
@@ -99,25 +108,56 @@ export default function GallerySection({
 			{/* Error Display */}
 			<ErrorMessage error={error} onDismiss={() => setError(null)} />
 			
-			{/* Hidden file input */}
+			{/* Hidden file input - enhanced for mobile camera support */}
 			<input
 				ref={fileInputRef}
 				type="file"
-				accept="image/*"
+				accept={getMobileFileAccept()}
+				capture="environment"
 				onChange={handleImageUpload}
 				className="hidden"
 				disabled={uploading}
 			/>
 			
-			{/* Add Photo Button */}
-			<div className="flex justify-center mb-8">
+			{/* Add Photo Buttons */}
+			<div className="flex flex-col sm:flex-row justify-center gap-4 mb-8">
+				{/* Camera Button - only show if camera is supported */}
+				{cameraSupported && (
+					<button
+						onClick={() => {
+							if (uploading) return;
+							setError(null);
+							// Set capture attribute for camera
+							if (fileInputRef.current) {
+								fileInputRef.current.setAttribute('capture', 'environment');
+								fileInputRef.current.click();
+							}
+						}}
+						disabled={uploading}
+						className="bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center gap-3 text-base sm:text-lg"
+					>
+						<span className="text-xl">📸</span>
+						{uploading ? "Качване..." : "Снимай"}
+						<span className="text-xl">✨</span>
+					</button>
+				)}
+				
+				{/* Gallery Button */}
 				<button
-					onClick={handleAddPhotoClick}
+					onClick={() => {
+						if (uploading) return;
+						setError(null);
+						// Remove capture attribute for gallery
+						if (fileInputRef.current) {
+							fileInputRef.current.removeAttribute('capture');
+							fileInputRef.current.click();
+						}
+					}}
 					disabled={uploading}
 					className="bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 hover:from-pink-600 hover:via-purple-600 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center gap-3 text-base sm:text-lg"
 				>
-					<span className="text-xl">📷</span>
-					{uploading ? "Качване..." : "Добави снимка"}
+					<span className="text-xl">🖼️</span>
+					{uploading ? "Качване..." : cameraSupported ? "Галерия" : "Избери снимка"}
 					<span className="text-xl">✨</span>
 				</button>
 			</div>

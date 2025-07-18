@@ -1,3 +1,5 @@
+import { getMobileImageSettings } from './mobileUtils';
+
 // Process image for mobile compatibility with enhanced error handling
 export const processImageForMobile = async (file) => {
 	return new Promise((resolve, reject) => {
@@ -32,10 +34,13 @@ export const processImageForMobile = async (file) => {
 			// Create image element
 			const img = new Image();
 			
+			// Get mobile-optimized settings
+			const mobileSettings = getMobileImageSettings();
+			
 			// Set up timeout for image loading
 			const timeout = setTimeout(() => {
 				reject(new Error('Времето за зареждане на изображението изтече. Моля опитайте отново.'));
-			}, 15000); // Reduced timeout to 15 seconds
+			}, mobileSettings.timeout);
 
 			// Success handler
 			img.onload = function() {
@@ -51,8 +56,8 @@ export const processImageForMobile = async (file) => {
 						return;
 					}
 					
-					// More conservative max dimension for mobile reliability
-					const maxDimension = 1200;
+					// Use mobile-optimized max dimension
+					const maxDimension = mobileSettings.maxDimension;
 					
 					// Calculate new dimensions maintaining aspect ratio
 					if (width > maxDimension || height > maxDimension) {
@@ -83,7 +88,7 @@ export const processImageForMobile = async (file) => {
 					
 					// Progressive quality approach for mobile
 					let dataUrl;
-					let quality = 0.85; // Start with good quality
+					let quality = mobileSettings.quality;
 					
 					// Try to create data URL with error handling
 					try {
@@ -105,7 +110,7 @@ export const processImageForMobile = async (file) => {
 					}
 					
 					// Check size and compress if needed
-					const maxSize = 3 * 1024 * 1024; // 3MB limit
+					const maxSize = mobileSettings.maxSize;
 					
 					if (dataUrl.length > maxSize) {
 						quality = 0.7;
@@ -178,8 +183,8 @@ export const processImageForMobile = async (file) => {
 			// Create object URL with enhanced error handling
 			let objectUrl;
 			try {
-				// Use FileReader as fallback for problematic files
-				const useFileReader = file.type === '' || file.size > 5 * 1024 * 1024; // 5MB
+				// Use FileReader as fallback for problematic files or mobile devices
+				const useFileReader = mobileSettings.useFileReader || file.type === '' || file.size > 5 * 1024 * 1024;
 				
 				if (useFileReader) {
 					// Use FileReader for large files or files without proper MIME type

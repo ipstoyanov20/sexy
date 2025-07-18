@@ -19,13 +19,22 @@ export default function GalleryGrid({ images, loading, onDeleteImage, onAddPhoto
 					<p className="text-gray-600 text-base sm:text-lg mb-6 leading-relaxed">
 						Все още няма снимки в споделената галерия. Добави първата снимка, която всички ще могат да видят! ✨
 					</p>
-					<button
-						onClick={onAddPhotoClick}
-						disabled={uploading}
-						className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-lg"
-					>
-						{uploading ? "Качване..." : "Добави първата снимка 🎉"}
-					</button>
+					<div className="flex flex-col sm:flex-row gap-3 justify-center">
+						<button
+							onClick={onAddPhotoClick}
+							disabled={uploading}
+							className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-base"
+						>
+							{uploading ? "Качване..." : "📸 Снимай"}
+						</button>
+						<button
+							onClick={onAddPhotoClick}
+							disabled={uploading}
+							className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-base"
+						>
+							{uploading ? "Качване..." : "🖼️ Галерия"}
+						</button>
+					</div>
 				</div>
 			</div>
 		);
