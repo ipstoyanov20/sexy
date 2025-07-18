@@ -441,11 +441,9 @@ export default function Home() {
 										boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
 									}}
 								>
-									<Image
+									<img
 										src={src}
 										alt={`pose-${index}`}
-										width={100}
-										height={100}
 										className="w-full h-full object-cover pointer-events-none"
 									/>
 								</div>
@@ -563,13 +561,10 @@ export default function Home() {
 							</button>
 							
 							<div className="aspect-square rounded-xl overflow-hidden mb-4 bg-gradient-to-br from-pink-100 to-purple-100">
-								<Image
+								<img
 									src={item.src}
 									alt={item.title}
-									width={300}
-									height={300}
 									className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-									unoptimized={true}
 									onError={(e) => {
 										console.error('Gallery image failed to load:', item.id);
 										e.target.style.display = 'none';
