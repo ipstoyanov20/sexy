@@ -1,8 +1,16 @@
 "use client";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "../lib/supabase";
+import { createClient } from '@supabase/supabase-js';
 
+// Initialize Supabase client directly in the component
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+let supabase = null;
+if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey) {
+	supabase = createClient(supabaseUrl, supabaseAnonKey);
+}
 export default function Home() {
 	const [isSpinning, setIsSpinning] = useState(false);
 	const [showBlur, setShowBlur] = useState(true);
@@ -47,8 +55,17 @@ export default function Home() {
 			setLoading(true);
 			setError(null);
 			
+			// Check if we're on the client side and have the required env vars
+			if (typeof window === 'undefined') {
+				return; // Skip on server side
+			}
+			
+			if (!supabaseUrl || !supabaseAnonKey) {
+				throw new Error('Missing Supabase configuration');
+			}
+			
 			if (!supabase) {
-				throw new Error('Supabase client is not initialized');
+				supabase = createClient(supabaseUrl, supabaseAnonKey);
 			}
 
 			const { data, error } = await supabase
@@ -86,8 +103,17 @@ export default function Home() {
 			setUploading(true);
 			setError(null);
 			
+			// Check if we're on the client side and have the required env vars
+			if (typeof window === 'undefined') {
+				throw new Error('This function can only be called on the client side');
+			}
+			
+			if (!supabaseUrl || !supabaseAnonKey) {
+				throw new Error('Missing Supabase configuration');
+			}
+			
 			if (!supabase) {
-				throw new Error('Supabase client is not initialized');
+				supabase = createClient(supabaseUrl, supabaseAnonKey);
 			}
 
 			// Validate that all required fields are present
@@ -145,8 +171,17 @@ export default function Home() {
 	// Delete image from Supabase
 	const deleteImageFromDatabase = async (imageId) => {
 		try {
+			// Check if we're on the client side and have the required env vars
+			if (typeof window === 'undefined') {
+				throw new Error('This function can only be called on the client side');
+			}
+			
+			if (!supabaseUrl || !supabaseAnonKey) {
+				throw new Error('Missing Supabase configuration');
+			}
+			
 			if (!supabase) {
-				throw new Error('Supabase client is not initialized');
+				supabase = createClient(supabaseUrl, supabaseAnonKey);
 			}
 
 			const { error } = await supabase
@@ -171,7 +206,10 @@ export default function Home() {
 	// Initial shuffle + blur on refresh + load gallery
 	useEffect(() => {
 		setShuffledImages(shuffleArray(images));
-		loadGalleryFromDatabase();
+		// Only load gallery on client side
+		if (typeof window !== 'undefined') {
+			loadGalleryFromDatabase();
+		}
 		const timer = setTimeout(() => setShowBlur(false), 500);
 		return () => clearTimeout(timer);
 	}, []);
