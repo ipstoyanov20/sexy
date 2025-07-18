@@ -1,16 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
-import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client directly in the component
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-let supabase = null;
-if (typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey) {
-	supabase = createClient(supabaseUrl, supabaseAnonKey);
-}
 export default function Home() {
 	const [isSpinning, setIsSpinning] = useState(false);
 	const [showBlur, setShowBlur] = useState(true);
@@ -29,6 +20,29 @@ export default function Home() {
 	const [newImageName, setNewImageName] = useState("");
 	const audioRef = useRef(null);
 	const fileInputRef = useRef(null);
+	const [supabase, setSupabase] = useState(null);
+
+	// Initialize Supabase client on component mount
+	useEffect(() => {
+		const initSupabase = async () => {
+			try {
+				const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+				const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+				
+				if (supabaseUrl && supabaseAnonKey) {
+					// Dynamic import to avoid SSR issues
+					const { createClient } = await import('@supabase/supabase-js');
+					const client = createClient(supabaseUrl, supabaseAnonKey);
+					setSupabase(client);
+				}
+			} catch (error) {
+				console.error('Failed to initialize Supabase:', error);
+				setError('Грешка при инициализация на базата данни');
+			}
+		};
+		
+		initSupabase();
+	}, []);
 
 	const images = [
 		"/kamasutra.png",
@@ -51,22 +65,14 @@ export default function Home() {
 
 	// Load gallery images from Supabase
 	const loadGalleryFromDatabase = async () => {
+		if (!supabase) {
+			console.log('Supabase not initialized yet');
+			return;
+		}
+		
 		try {
 			setLoading(true);
 			setError(null);
-			
-			// Check if we're on the client side and have the required env vars
-			if (typeof window === 'undefined') {
-				return; // Skip on server side
-			}
-			
-			if (!supabaseUrl || !supabaseAnonKey) {
-				throw new Error('Missing Supabase configuration');
-			}
-			
-			if (!supabase) {
-				supabase = createClient(supabaseUrl, supabaseAnonKey);
-			}
 
 			const { data, error } = await supabase
 				.from('gallery_images')
@@ -99,22 +105,14 @@ export default function Home() {
 
 	// Save image to Supabase
 	const saveImageToDatabase = async (imageData) => {
+		if (!supabase) {
+			setError('База данни не е инициализирана');
+			return false;
+		}
+		
 		try {
 			setUploading(true);
 			setError(null);
-			
-			// Check if we're on the client side and have the required env vars
-			if (typeof window === 'undefined') {
-				throw new Error('This function can only be called on the client side');
-			}
-			
-			if (!supabaseUrl || !supabaseAnonKey) {
-				throw new Error('Missing Supabase configuration');
-			}
-			
-			if (!supabase) {
-				supabase = createClient(supabaseUrl, supabaseAnonKey);
-			}
 
 			// Validate that all required fields are present
 			if (!imageData.title || !imageData.image_data || !imageData.date_taken) {
@@ -170,20 +168,12 @@ export default function Home() {
 
 	// Delete image from Supabase
 	const deleteImageFromDatabase = async (imageId) => {
+		if (!supabase) {
+			setError('База данни не е инициализирана');
+			return false;
+		}
+		
 		try {
-			// Check if we're on the client side and have the required env vars
-			if (typeof window === 'undefined') {
-				throw new Error('This function can only be called on the client side');
-			}
-			
-			if (!supabaseUrl || !supabaseAnonKey) {
-				throw new Error('Missing Supabase configuration');
-			}
-			
-			if (!supabase) {
-				supabase = createClient(supabaseUrl, supabaseAnonKey);
-			}
-
 			const { error } = await supabase
 				.from('gallery_images')
 				.delete()
@@ -206,13 +196,16 @@ export default function Home() {
 	// Initial shuffle + blur on refresh + load gallery
 	useEffect(() => {
 		setShuffledImages(shuffleArray(images));
-		// Only load gallery on client side
-		if (typeof window !== 'undefined') {
-			loadGalleryFromDatabase();
-		}
 		const timer = setTimeout(() => setShowBlur(false), 500);
 		return () => clearTimeout(timer);
 	}, []);
+
+	// Load gallery when Supabase is ready
+	useEffect(() => {
+		if (supabase) {
+			loadGalleryFromDatabase();
+		}
+	}, [supabase]);
 
 	// Setup modal sound
 	useEffect(() => {
@@ -366,57 +359,61 @@ export default function Home() {
 	// Process image for mobile compatibility
 	const processImageForMobile = async (file) => {
 		return new Promise((resolve, reject) => {
-			const canvas = document.createElement('canvas');
-			const ctx = canvas.getContext('2d');
-			const img = new Image();
-			
-			img.onload = () => {
-				try {
-					// More aggressive compression for mobile
-					let { width, height } = img;
-					const maxDimension = 900; // Lowered from 1200
-					if (width > maxDimension || height > maxDimension) {
-						if (width > height) {
-							height = (height * maxDimension) / width;
-							width = maxDimension;
+			try {
+				const canvas = document.createElement('canvas');
+				const ctx = canvas.getContext('2d');
+				const img = new window.Image(); // Use window.Image explicitly
+				
+				img.onload = () => {
+					try {
+						// More aggressive compression for mobile
+						let { width, height } = img;
+						const maxDimension = 900; // Lowered from 1200
+						if (width > maxDimension || height > maxDimension) {
+							if (width > height) {
+								height = (height * maxDimension) / width;
+								width = maxDimension;
+							} else {
+								width = (width * maxDimension) / height;
+								height = maxDimension;
+							}
+						}
+						canvas.width = width;
+						canvas.height = height;
+						ctx.drawImage(img, 0, 0, width, height);
+						// Lower quality for mobile
+						let dataUrl = canvas.toDataURL('image/jpeg', 0.6); // Lowered from 0.8
+						console.log('Compressed image data URL length:', dataUrl.length);
+						if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+							throw new Error('Failed to process image');
+						}
+						if (dataUrl.length > 4 * 1024 * 1024) { // 4MB limit for extra safety
+							// Try with even lower quality
+							const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.4);
+							console.log('Extra compressed image data URL length:', compressedDataUrl.length);
+							if (compressedDataUrl.length > 4 * 1024 * 1024) {
+								throw new Error('Файлът е твърде голям дори след компресия. Моля изберете по-малка снимка.');
+							}
+							resolve(compressedDataUrl);
 						} else {
-							width = (width * maxDimension) / height;
-							height = maxDimension;
+							resolve(dataUrl);
 						}
+					} catch (error) {
+						reject(error);
 					}
-					canvas.width = width;
-					canvas.height = height;
-					ctx.drawImage(img, 0, 0, width, height);
-					// Lower quality for mobile
-					let dataUrl = canvas.toDataURL('image/jpeg', 0.6); // Lowered from 0.8
-					console.log('Compressed image data URL length:', dataUrl.length);
-					if (!dataUrl || !dataUrl.startsWith('data:image/')) {
-						throw new Error('Failed to process image');
-					}
-					if (dataUrl.length > 4 * 1024 * 1024) { // 4MB limit for extra safety
-						// Try with even lower quality
-						const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.4);
-						console.log('Extra compressed image data URL length:', compressedDataUrl.length);
-						if (compressedDataUrl.length > 4 * 1024 * 1024) {
-							throw new Error('Файлът е твърде голям дори след компресия. Моля изберете по-малка снимка.');
-						}
-						resolve(compressedDataUrl);
-					} else {
-						resolve(dataUrl);
-					}
-				} catch (error) {
-					reject(error);
-				}
-			};
-			img.onerror = () => {
-				reject(new Error('Грешка при зареждане на изображението'));
-			};
-			const objectUrl = URL.createObjectURL(file);
-			img.src = objectUrl;
-			img.onload = (originalOnload => function() {
-				URL.revokeObjectURL(objectUrl);
-				return originalOnload.apply(this, arguments);
-			})(img.onload);
+				};
+				img.onerror = () => {
+					reject(new Error('Грешка при зареждане на изображението'));
+				};
+				const objectUrl = URL.createObjectURL(file);
+				img.src = objectUrl;
+				img.onload = (originalOnload => function() {
+					URL.revokeObjectURL(objectUrl);
+					return originalOnload.apply(this, arguments);
+				})(img.onload);
+			} catch (error) {
+				reject(new Error('Грешка при инициализация на обработката на изображението'));
+			}
 		});
 	};
 
