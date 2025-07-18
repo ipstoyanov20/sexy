@@ -20,31 +20,36 @@ export default function GallerySection({
 	const handleImageUpload = async (event) => {
 		const file = event.target.files[0];
 		if (file) {
-			// Validate file size (max 5MB)
-			if (file.size > 5 * 1024 * 1024) {
-				setError('Файлът е твърде голям. Максималният размер е 5MB.');
-				return;
-			}
-
-			// Validate file type
-			const validImageTypes = [
-				'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
-				'image/bmp', 'image/webp', 'image/svg+xml', 'image/tiff', 
-				'image/tif', 'image/ico', 'image/heic', 'image/heif'
-			];
-			
-			const isValidType = file.type.startsWith('image/') || 
-				validImageTypes.includes(file.type) ||
-				/\.(jpg|jpeg|png|gif|bmp|webp|svg|tiff|tif|ico|heic|heif)$/i.test(file.name);
-			
-			if (!isValidType) {
-				setError('Моля изберете валиден файл с изображение.');
+			// Validate file size (max 10MB - more lenient)
+			if (file.size > 10 * 1024 * 1024) {
+				setError('Файлът е твърде голям. Максималният размер е 10MB.');
 				return;
 			}
 
 			// Additional mobile-specific validations
 			if (file.size === 0) {
 				setError('Файлът е празен или повреден.');
+				return;
+			}
+
+			// More lenient file type validation
+			const validImageTypes = [
+				'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
+				'image/bmp', 'image/webp', 'image/svg+xml', 'image/tiff', 
+				'image/tif', 'image/ico', 'image/heic', 'image/heif'
+			];
+			
+			const fileExtension = file.name.toLowerCase().split('.').pop();
+			const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'tiff', 'tif', 'ico', 'heic', 'heif'];
+			
+			// Be more lenient - accept if MIME type starts with image/ OR has valid extension
+			const isValidType = file.type.startsWith('image/') || 
+				validImageTypes.includes(file.type) ||
+				validExtensions.includes(fileExtension) ||
+				file.type === ''; // Accept files without MIME type if they have valid extension
+			
+			if (!isValidType) {
+				setError('Моля изберете валиден файл с изображение (JPG, PNG, GIF, WebP, BMP).');
 				return;
 			}
 			
@@ -98,7 +103,7 @@ export default function GallerySection({
 			<input
 				ref={fileInputRef}
 				type="file"
-				accept="image/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.tiff,.tif,.ico,.heic,.heif"
+				accept="image/*"
 				onChange={handleImageUpload}
 				className="hidden"
 				disabled={uploading}

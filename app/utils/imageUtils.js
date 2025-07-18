@@ -1,8 +1,26 @@
-// Process image for mobile compatibility
+// Process image for mobile compatibility with enhanced error handling
 export const processImageForMobile = async (file) => {
 	return new Promise((resolve, reject) => {
 		try {
-			// More robust element creation for mobile
+			// Validate file first
+			if (!file || file.size === 0) {
+				reject(new Error('Файлът е празен или невалиден'));
+				return;
+			}
+
+			// Check file type more thoroughly
+			const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
+			const fileExtension = file.name.toLowerCase().split('.').pop();
+			const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+			
+			const isValidType = validTypes.includes(file.type) || validExtensions.includes(fileExtension);
+			
+			if (!isValidType) {
+				reject(new Error('Неподдържан формат на файла. Моля използвайте JPG, PNG, GIF, WebP или BMP.'));
+				return;
+			}
+
+			// Create canvas and context
 			const canvas = document.createElement('canvas');
 			const ctx = canvas.getContext('2d');
 			
@@ -10,28 +28,39 @@ export const processImageForMobile = async (file) => {
 				reject(new Error('Canvas не се поддържа от този браузър'));
 				return;
 			}
+
+			// Create image element
+			const img = new Image();
 			
-			// Use standard Image constructor - more reliable on mobile
-			const img = new window.Image();
-			
-			// Don't set crossOrigin for local files - causes issues on mobile
-			// img.crossOrigin = 'anonymous';
-			
-			img.onload = () => {
+			// Set up timeout for image loading
+			const timeout = setTimeout(() => {
+				reject(new Error('Времето за зареждане на изображението изтече. Моля опитайте отново.'));
+			}, 15000); // Reduced timeout to 15 seconds
+
+			// Success handler
+			img.onload = function() {
+				clearTimeout(timeout);
+				
 				try {
 					// Get original dimensions
 					let { width, height } = img;
 					
+					// Validate dimensions
+					if (width <= 0 || height <= 0) {
+						reject(new Error('Невалидни размери на изображението'));
+						return;
+					}
+					
 					// More conservative max dimension for mobile reliability
-					const maxDimension = 1000;
+					const maxDimension = 1200;
 					
 					// Calculate new dimensions maintaining aspect ratio
 					if (width > maxDimension || height > maxDimension) {
 						if (width > height) {
-							height = (height * maxDimension) / width;
+							height = Math.round((height * maxDimension) / width);
 							width = maxDimension;
 						} else {
-							width = (width * maxDimension) / height;
+							width = Math.round((width * maxDimension) / height);
 							height = maxDimension;
 						}
 					}
@@ -42,7 +71,7 @@ export const processImageForMobile = async (file) => {
 					
 					// Configure canvas for better mobile compatibility
 					ctx.imageSmoothingEnabled = true;
-					ctx.imageSmoothingQuality = 'medium'; // 'high' can cause issues on some mobile devices
+					ctx.imageSmoothingQuality = 'medium';
 					
 					// Clear canvas and set white background
 					ctx.clearRect(0, 0, width, height);
@@ -54,15 +83,20 @@ export const processImageForMobile = async (file) => {
 					
 					// Progressive quality approach for mobile
 					let dataUrl;
-					let quality = 0.8; // Start with good quality
+					let quality = 0.85; // Start with good quality
 					
 					// Try to create data URL with error handling
 					try {
 						dataUrl = canvas.toDataURL('image/jpeg', quality);
 					} catch (canvasError) {
 						console.error('Canvas toDataURL error:', canvasError);
-						reject(new Error('Грешка при конвертиране на изображението'));
-						return;
+						// Try with PNG as fallback
+						try {
+							dataUrl = canvas.toDataURL('image/png');
+						} catch (pngError) {
+							reject(new Error('Грешка при конвертиране на изображението'));
+							return;
+						}
 					}
 					
 					if (!dataUrl || !dataUrl.startsWith('data:image/')) {
@@ -71,10 +105,10 @@ export const processImageForMobile = async (file) => {
 					}
 					
 					// Check size and compress if needed
-					const maxSize = 2 * 1024 * 1024; // 2MB limit for better mobile compatibility
+					const maxSize = 3 * 1024 * 1024; // 3MB limit
 					
 					if (dataUrl.length > maxSize) {
-						quality = 0.6;
+						quality = 0.7;
 						try {
 							dataUrl = canvas.toDataURL('image/jpeg', quality);
 						} catch (canvasError) {
@@ -84,26 +118,29 @@ export const processImageForMobile = async (file) => {
 						}
 					}
 					
-					// If still too large, reduce dimensions
+					// If still too large, reduce dimensions further
 					if (dataUrl.length > maxSize) {
 						const smallerDimension = 800;
+						let newWidth = width;
+						let newHeight = height;
+						
 						if (width > height) {
-							height = (height * smallerDimension) / width;
-							width = smallerDimension;
+							newHeight = Math.round((height * smallerDimension) / width);
+							newWidth = smallerDimension;
 						} else {
-							width = (width * smallerDimension) / height;
-							height = smallerDimension;
+							newWidth = Math.round((width * smallerDimension) / height);
+							newHeight = smallerDimension;
 						}
 						
-						canvas.width = width;
-						canvas.height = height;
-						ctx.clearRect(0, 0, width, height);
+						canvas.width = newWidth;
+						canvas.height = newHeight;
+						ctx.clearRect(0, 0, newWidth, newHeight);
 						ctx.fillStyle = '#FFFFFF';
-						ctx.fillRect(0, 0, width, height);
+						ctx.fillRect(0, 0, newWidth, newHeight);
 						
 						try {
-							ctx.drawImage(img, 0, 0, width, height);
-							dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+							ctx.drawImage(img, 0, 0, newWidth, newHeight);
+							dataUrl = canvas.toDataURL('image/jpeg', 0.6);
 						} catch (canvasError) {
 							console.error('Canvas final processing error:', canvasError);
 							reject(new Error('Грешка при финална обработка на изображението'));
@@ -116,7 +153,7 @@ export const processImageForMobile = async (file) => {
 						}
 					}
 					
-					console.log('Final processed image size:', dataUrl.length, 'bytes');
+					console.log('Final processed image size:', Math.round(dataUrl.length / 1024), 'KB');
 					resolve(dataUrl);
 					
 				} catch (processingError) {
@@ -124,57 +161,65 @@ export const processImageForMobile = async (file) => {
 					reject(new Error('Грешка при обработка на изображението: ' + processingError.message));
 				}
 			};
-			
-			img.onerror = (errorEvent) => {
+
+			// Error handler with more specific error messages
+			img.onerror = function(errorEvent) {
+				clearTimeout(timeout);
 				console.error('Image loading error:', errorEvent);
-				reject(new Error('Грешка при зареждане на изображението. Моля проверете дали файлът е валидно изображение.'));
+				
+				// Try to provide more specific error message
+				if (file.size > 10 * 1024 * 1024) { // 10MB
+					reject(new Error('Файлът е твърде голям. Моля изберете файл под 10MB.'));
+				} else {
+					reject(new Error('Не може да се зареди изображението. Моля опитайте с друг файл.'));
+				}
 			};
-			
-			// Create object URL with better error handling
+
+			// Create object URL with enhanced error handling
 			let objectUrl;
 			try {
-				// Check if file is valid before creating URL
-				if (!file || file.size === 0) {
-					reject(new Error('Файлът е празен или невалиден'));
-					return;
+				// Use FileReader as fallback for problematic files
+				const useFileReader = file.type === '' || file.size > 5 * 1024 * 1024; // 5MB
+				
+				if (useFileReader) {
+					// Use FileReader for large files or files without proper MIME type
+					const reader = new FileReader();
+					reader.onload = function(e) {
+						img.src = e.target.result;
+					};
+					reader.onerror = function() {
+						clearTimeout(timeout);
+						reject(new Error('Грешка при четене на файла'));
+					};
+					reader.readAsDataURL(file);
+				} else {
+					// Use object URL for smaller files
+					objectUrl = URL.createObjectURL(file);
+					
+					// Clean up object URL when done
+					const originalOnload = img.onload;
+					img.onload = function() {
+						if (objectUrl) {
+							URL.revokeObjectURL(objectUrl);
+						}
+						return originalOnload.apply(this, arguments);
+					};
+					
+					const originalOnerror = img.onerror;
+					img.onerror = function() {
+						if (objectUrl) {
+							URL.revokeObjectURL(objectUrl);
+						}
+						return originalOnerror.apply(this, arguments);
+					};
+					
+					img.src = objectUrl;
 				}
 				
-				objectUrl = URL.createObjectURL(file);
-				
-				// Set a timeout to prevent hanging
-				const timeout = setTimeout(() => {
-					if (objectUrl) {
-						URL.revokeObjectURL(objectUrl);
-					}
-					reject(new Error('Времето за обработка на изображението изтече. Моля опитайте с по-малък файл.'));
-				}, 30000); // 30 second timeout
-				
-				// Override onload to clear timeout and cleanup
-				const originalOnload = img.onload;
-				img.onload = function() {
-					clearTimeout(timeout);
-					if (objectUrl) {
-						URL.revokeObjectURL(objectUrl);
-					}
-					return originalOnload.apply(this, arguments);
-				};
-				
-				// Override onerror to clear timeout and cleanup
-				const originalOnerror = img.onerror;
-				img.onerror = function() {
-					clearTimeout(timeout);
-					if (objectUrl) {
-						URL.revokeObjectURL(objectUrl);
-					}
-					return originalOnerror.apply(this, arguments);
-				};
-				
-				// Start loading the image
-				img.src = objectUrl;
-				
 			} catch (urlError) {
+				clearTimeout(timeout);
 				console.error('URL creation error:', urlError);
-				reject(new Error('Грешка при създаване на URL за файла. Моля опитайте с друг файл.'));
+				reject(new Error('Грешка при обработка на файла. Моля опитайте отново.'));
 			}
 			
 		} catch (initError) {

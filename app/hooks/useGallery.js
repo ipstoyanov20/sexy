@@ -32,6 +32,15 @@ export function useGallery() {
 			setUploading(true);
 			setError(null);
 
+			// Additional validation
+			if (!file) {
+				throw new Error('Няма избран файл');
+			}
+
+			if (!imageName || imageName.trim().length === 0) {
+				throw new Error('Моля въведете име за снимката');
+			}
+
 			// Get current date and time
 			const now = new Date();
 			const date = now.toISOString().split("T")[0]; // YYYY-MM-DD format
@@ -45,7 +54,7 @@ export function useGallery() {
 
 			// Prepare image data
 			const imageData = {
-				title: imageName,
+				title: imageName.trim(),
 				image_data: imageDataUrl,
 				date_taken: date,
 				time_taken: time
@@ -53,7 +62,7 @@ export function useGallery() {
 
 			// Validate the data before saving
 			if (!imageData.title || !imageData.image_data || !imageData.date_taken) {
-				throw new Error('Missing required image data');
+				throw new Error('Липсват задължителни данни за снимката');
 			}
 
 			const success = await saveImageToDatabase(imageData);
@@ -65,7 +74,16 @@ export function useGallery() {
 			return false;
 		} catch (error) {
 			console.error('Error processing file:', error);
-			setError('Грешка при обработка на файла: ' + error.message);
+			
+			// Provide more user-friendly error messages
+			let errorMessage = error.message;
+			if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+				errorMessage = 'Грешка в мрежата. Моля проверете интернет връзката и опитайте отново.';
+			} else if (error.message.includes('timeout')) {
+				errorMessage = 'Времето за обработка изтече. Моля опитайте с по-малък файл.';
+			}
+			
+			setError(errorMessage);
 			return false;
 		} finally {
 			setUploading(false);
