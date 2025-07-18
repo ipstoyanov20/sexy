@@ -334,10 +334,9 @@ export default function Home() {
 			
 			img.onload = () => {
 				try {
-					// Calculate dimensions to keep image under reasonable size
+					// More aggressive compression for mobile
 					let { width, height } = img;
-					const maxDimension = 1200; // Max width or height
-					
+					const maxDimension = 900; // Lowered from 1200
 					if (width > maxDimension || height > maxDimension) {
 						if (width > height) {
 							height = (height * maxDimension) / width;
@@ -347,26 +346,20 @@ export default function Home() {
 							height = maxDimension;
 						}
 					}
-					
 					canvas.width = width;
 					canvas.height = height;
-					
-					// Draw and compress
 					ctx.drawImage(img, 0, 0, width, height);
-					
-					// Convert to data URL with compression
-					const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-					
-					// Validate the result
+					// Lower quality for mobile
+					let dataUrl = canvas.toDataURL('image/jpeg', 0.6); // Lowered from 0.8
+					console.log('Compressed image data URL length:', dataUrl.length);
 					if (!dataUrl || !dataUrl.startsWith('data:image/')) {
 						throw new Error('Failed to process image');
 					}
-					
-					// Check size (mobile browsers have limits)
-					if (dataUrl.length > 8 * 1024 * 1024) { // 8MB limit
-						// Try with lower quality
-						const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
-						if (compressedDataUrl.length > 8 * 1024 * 1024) {
+					if (dataUrl.length > 4 * 1024 * 1024) { // 4MB limit for extra safety
+						// Try with even lower quality
+						const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.4);
+						console.log('Extra compressed image data URL length:', compressedDataUrl.length);
+						if (compressedDataUrl.length > 4 * 1024 * 1024) {
 							throw new Error('Файлът е твърде голям дори след компресия. Моля изберете по-малка снимка.');
 						}
 						resolve(compressedDataUrl);
@@ -377,16 +370,11 @@ export default function Home() {
 					reject(error);
 				}
 			};
-			
 			img.onerror = () => {
 				reject(new Error('Грешка при зареждане на изображението'));
 			};
-			
-			// Create object URL for the image
 			const objectUrl = URL.createObjectURL(file);
 			img.src = objectUrl;
-			
-			// Clean up object URL after loading
 			img.onload = (originalOnload => function() {
 				URL.revokeObjectURL(objectUrl);
 				return originalOnload.apply(this, arguments);
@@ -566,9 +554,20 @@ export default function Home() {
 									alt={item.title}
 									className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
 									onError={(e) => {
-										console.error('Gallery image failed to load:', item.id);
+										console.error('Gallery image failed to load:', item.id, item.src);
 										e.target.style.display = 'none';
 										e.target.nextSibling.style.display = 'flex';
+										// Show a user-friendly error message
+										const parent = e.target.parentNode;
+										if (parent) {
+											let errorMsg = parent.querySelector('.img-error-msg');
+											if (!errorMsg) {
+												errorMsg = document.createElement('div');
+												errorMsg.className = 'img-error-msg text-red-500 text-xs mt-2';
+												errorMsg.innerText = 'Снимката не може да се зареди. Моля, опитайте с по-малък файл.';
+												parent.appendChild(errorMsg);
+											}
+										}
 									}}
 								/>
 								<div className="w-full h-full hidden items-center justify-center text-gray-400 text-4xl">
