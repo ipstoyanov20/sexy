@@ -100,18 +100,39 @@ export default function Home() {
 				throw new Error('Invalid image data format');
 			}
 
-			const { data, error } = await supabase
-				.from('gallery_images')
-				.insert([imageData])
-				.select();
+			// Add retry logic for mobile network issues
+			let retries = 3;
+			let lastError;
+			
+			while (retries > 0) {
+				try {
+					const { data, error } = await supabase
+						.from('gallery_images')
+						.insert([imageData])
+						.select();
 
-			if (error) {
-				console.error('Error saving image:', error);
-				setError('Грешка при качване на снимката: ' + error.message);
-				return false;
+					if (error) {
+						throw error;
+					}
+
+					return true;
+				} catch (dbError) {
+					console.error(`Database error (attempt ${4 - retries}):`, dbError);
+					lastError = dbError;
+					retries--;
+					
+					if (retries > 0) {
+						// Wait before retrying (exponential backoff)
+						await new Promise(resolve => setTimeout(resolve, (4 - retries) * 1000));
+					}
+				}
 			}
-
-			return true;
+			
+			// If all retries failed
+			console.error('All database retries failed:', lastError);
+			setError('Грешка при качване на снимката: ' + (lastError?.message || 'Неизвестна грешка'));
+			return false;
+			
 		} catch (error) {
 			console.error('Error saving image:', error);
 			setError('Грешка при качване на снимката: ' + error.message);
@@ -212,6 +233,28 @@ export default function Home() {
 				return;
 			}
 
+			// Additional mobile-specific validations
+			if (file.size === 0) {
+				setError('Файлът е празен или повреден.');
+				return;
+			}
+			
+			// Check if file is readable (mobile browsers sometimes have issues)
+			try {
+				const testReader = new FileReader();
+				const testPromise = new Promise((resolve, reject) => {
+					testReader.onload = () => resolve(true);
+					testReader.onerror = () => reject(new Error('Cannot read file'));
+					testReader.onabort = () => reject(new Error('File reading aborted'));
+				});
+				
+				testReader.readAsArrayBuffer(file.slice(0, 100)); // Test read first 100 bytes
+				await testPromise;
+			} catch (testError) {
+				console.error('File test read failed:', testError);
+				setError('Файлът не може да бъде прочетен. Моля опитайте с друг файл.');
+				return;
+			}
 			// Set default name from file name (without extension)
 			const defaultName = file.name.replace(/\.[^/.]+$/, "");
 			setNewImageName(defaultName);
@@ -267,8 +310,31 @@ export default function Home() {
 				});
 			};
 
-			// Read the file
-			const imageDataUrl = await readFileAsDataURL(pendingFile);
+			// Read the file with timeout and better error handling
+			let imageDataUrl;
+			try {
+				// Add a timeout for file reading (30 seconds)
+				const fileReadPromise = readFileAsDataURL(pendingFile);
+				const timeoutPromise = new Promise((_, reject) => 
+					setTimeout(() => reject(new Error('File reading timeout')), 30000)
+				);
+				
+				imageDataUrl = await Promise.race([fileReadPromise, timeoutPromise]);
+				
+				// Additional validation for mobile browsers
+				if (!imageDataUrl || typeof imageDataUrl !== 'string') {
+					throw new Error('Invalid file data');
+				}
+				
+				// Check if the data URL is too large (mobile browsers have limits)
+				if (imageDataUrl.length > 10 * 1024 * 1024) { // 10MB limit for data URL
+					throw new Error('Файлът е твърде голям за обработка. Моля изберете по-малка снимка.');
+				}
+				
+			} catch (fileError) {
+				console.error('File reading error:', fileError);
+				throw new Error('Грешка при четене на файла: ' + fileError.message);
+			}
 
 			// Prepare image data
 			const imageData = {
@@ -291,6 +357,10 @@ export default function Home() {
 				setShowRenameModal(false);
 				setPendingFile(null);
 				setNewImageName("");
+				// Clean up the object URL to prevent memory leaks
+				if (pendingFile) {
+					URL.revokeObjectURL(URL.createObjectURL(pendingFile));
+				}
 			}
 		} catch (error) {
 			console.error('Error processing file:', error);
@@ -644,11 +714,29 @@ export default function Home() {
 						{/* Preview of selected image */}
 						{pendingFile && (
 							<div className="w-32 h-32 mx-auto mb-4 rounded-xl overflow-hidden bg-gray-100">
-								<img
-									src={URL.createObjectURL(pendingFile)}
-									alt="Preview"
-									className="w-full h-full object-cover"
-								/>
+								{(() => {
+									try {
+										const previewUrl = URL.createObjectURL(pendingFile);
+										return (
+											<img
+												src={previewUrl}
+												alt="Preview"
+												className="w-full h-full object-cover"
+												onError={(e) => {
+													console.error('Preview image failed to load');
+													e.target.style.display = 'none';
+												}}
+											/>
+										);
+									} catch (error) {
+										console.error('Failed to create object URL:', error);
+										return (
+											<div className="w-full h-full flex items-center justify-center text-gray-500">
+												📷
+											</div>
+										);
+									}
+								})()}
 							</div>
 						)}
 						
