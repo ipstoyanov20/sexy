@@ -62,15 +62,31 @@ export default function Home() {
 				return;
 			}
 
-			const formattedImages = data.map(item => ({
-				id: item.id,
-				src: item.image_data,
-				title: item.title,
-				date: item.date_taken,
-				time: item.time_taken,
-				uploadedAt: new Date(item.uploaded_at).toLocaleString('bg-BG')
-			}));
+			const formattedImages = data.map(item => {
+				// Validate image data
+				if (!item.image_data || !item.image_data.startsWith('data:image/')) {
+					console.warn('Invalid image data for item:', item.id);
+					return {
+						id: item.id,
+						src: null, // This will trigger the error state in the UI
+						title: item.title,
+						date: item.date_taken,
+						time: item.time_taken,
+						uploadedAt: new Date(item.uploaded_at).toLocaleString('bg-BG')
+					};
+				}
 
+				return {
+					id: item.id,
+					src: item.image_data,
+					title: item.title,
+					date: item.date_taken,
+					time: item.time_taken,
+					uploadedAt: new Date(item.uploaded_at).toLocaleString('bg-BG')
+				};
+			});
+
+			console.log(`Loaded ${formattedImages.length} images from gallery`);
 			setGalleryImages(formattedImages);
 		} catch (error) {
 			console.error('Error loading gallery:', error);
@@ -106,16 +122,23 @@ export default function Home() {
 			
 			while (retries > 0) {
 				try {
+					console.log(`Attempting to save to database (attempt ${4 - retries})`);
 					const { data, error } = await supabase
 						.from('gallery_images')
 						.insert([imageData])
 						.select();
 
 					if (error) {
+						console.error('Database error:', error);
 						throw error;
 					}
 
-					return true;
+					if (data && data.length > 0) {
+						console.log('Successfully saved to database:', data[0].id);
+						return true;
+					} else {
+						throw new Error('No data returned from database insert');
+					}
 				} catch (dbError) {
 					console.error(`Database error (attempt ${4 - retries}):`, dbError);
 					lastError = dbError;
@@ -123,7 +146,9 @@ export default function Home() {
 					
 					if (retries > 0) {
 						// Wait before retrying (exponential backoff)
-						await new Promise(resolve => setTimeout(resolve, (4 - retries) * 1000));
+						const delay = (4 - retries) * 2000; // 2s, 4s, 6s
+						console.log(`Retrying in ${delay}ms...`);
+						await new Promise(resolve => setTimeout(resolve, delay));
 					}
 				}
 			}
@@ -221,9 +246,14 @@ export default function Home() {
 	const handleImageUpload = async (event) => {
 		const file = event.target.files[0];
 		if (file) {
-			// Validate file size (max 5MB)
-			if (file.size > 5 * 1024 * 1024) {
-				setError('Файлът е твърде голям. Максималният размер е 5MB.');
+			// Detect if we're on mobile
+			const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+							 window.innerWidth <= 768;
+			
+			// Validate file size (stricter limits for mobile)
+			const maxSize = isMobile ? 3 * 1024 * 1024 : 5 * 1024 * 1024; // 3MB for mobile, 5MB for desktop
+			if (file.size > maxSize) {
+				setError(`Файлът е твърде голям. Максималният размер е ${isMobile ? '3MB' : '5MB'}.`);
 				return;
 			}
 
@@ -237,6 +267,18 @@ export default function Home() {
 			if (file.size === 0) {
 				setError('Файлът е празен или повреден.');
 				return;
+			}
+
+			// Check for supported image formats
+			const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+			if (!supportedTypes.includes(file.type.toLowerCase())) {
+				setError('Неподдържан формат на изображение. Моля използвайте JPEG, PNG или WebP.');
+				return;
+			}
+
+			// Additional mobile memory check
+			if (isMobile && file.size > 2 * 1024 * 1024) {
+				console.warn('Large file on mobile device, may cause memory issues');
 			}
 			
 			// Set default name from file name (without extension)
@@ -268,7 +310,14 @@ export default function Home() {
 			}); // HH:MM format
 
 			// Process and compress image for mobile compatibility
+			console.log('Processing image for mobile...', pendingFile.name, pendingFile.size);
 			const imageDataUrl = await processImageForMobile(pendingFile);
+			console.log('Image processed successfully, data URL length:', imageDataUrl.length);
+
+			// Additional validation for mobile
+			if (!imageDataUrl || !imageDataUrl.startsWith('data:image/')) {
+				throw new Error('Обработената снимка е невалидна. Моля опитайте отново.');
+			}
 
 			// Prepare image data
 			const imageData = {
@@ -283,18 +332,33 @@ export default function Home() {
 				throw new Error('Missing required image data');
 			}
 
+			console.log('Saving image to database...');
 			const success = await saveImageToDatabase(imageData);
 			if (success) {
+				console.log('Image saved successfully, reloading gallery...');
 				// Reload gallery to show the new image
 				await loadGalleryFromDatabase();
 				// Close modal and reset state
 				setShowRenameModal(false);
 				setPendingFile(null);
 				setNewImageName("");
+			} else {
+				throw new Error('Неуспешно запазване на снимката в базата данни.');
 			}
 		} catch (error) {
 			console.error('Error processing file:', error);
-			setError('Грешка при обработка на файла: ' + error.message);
+			let errorMessage = 'Грешка при обработка на файла: ' + error.message;
+			
+			// Provide more specific error messages for mobile users
+			if (error.message.includes('timeout') || error.message.includes('изтече')) {
+				errorMessage = 'Обработката на снимката отне твърде много време. Моля опитайте с по-малка снимка.';
+			} else if (error.message.includes('memory') || error.message.includes('canvas')) {
+				errorMessage = 'Недостатъчна памет за обработка на снимката. Моля опитайте с по-малка снимка.';
+			} else if (error.message.includes('network') || error.message.includes('connection')) {
+				errorMessage = 'Проблем с мрежовата връзка. Моля проверете интернет връзката и опитайте отново.';
+			}
+			
+			setError(errorMessage);
 		} finally {
 			setUploading(false);
 		}
@@ -332,11 +396,18 @@ export default function Home() {
 			const ctx = canvas.getContext('2d');
 			const img = new Image();
 			
+			// Set up timeout for mobile devices
+			const timeout = setTimeout(() => {
+				reject(new Error('Времето за обработка на изображението изтече. Моля опитайте с по-малка снимка.'));
+			}, 30000); // 30 seconds timeout
+			
 			img.onload = () => {
 				try {
-					// Calculate dimensions to keep image under reasonable size
+					clearTimeout(timeout);
+					
+					// Calculate dimensions to keep image under reasonable size for mobile
 					let { width, height } = img;
-					const maxDimension = 1200; // Max width or height
+					const maxDimension = 800; // Reduced from 1200 for better mobile compatibility
 					
 					if (width > maxDimension || height > maxDimension) {
 						if (width > height) {
@@ -348,49 +419,81 @@ export default function Home() {
 						}
 					}
 					
-					canvas.width = width;
-					canvas.height = height;
+					// Ensure dimensions are reasonable for mobile
+					canvas.width = Math.floor(width);
+					canvas.height = Math.floor(height);
+					
+					// Check if canvas is too large for mobile
+					if (canvas.width * canvas.height > 1000000) { // 1MP limit for mobile
+						const scale = Math.sqrt(1000000 / (canvas.width * canvas.height));
+						canvas.width = Math.floor(canvas.width * scale);
+						canvas.height = Math.floor(canvas.height * scale);
+					}
+					
+					// Set canvas context properties for better mobile performance
+					ctx.imageSmoothingEnabled = true;
+					ctx.imageSmoothingQuality = 'medium';
 					
 					// Draw and compress
-					ctx.drawImage(img, 0, 0, width, height);
+					ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 					
-					// Convert to data URL with compression
-					const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+					// Try multiple compression levels for mobile compatibility
+					let dataUrl;
+					let quality = 0.7; // Start with lower quality for mobile
 					
-					// Validate the result
-					if (!dataUrl || !dataUrl.startsWith('data:image/')) {
-						throw new Error('Failed to process image');
-					}
-					
-					// Check size (mobile browsers have limits)
-					if (dataUrl.length > 8 * 1024 * 1024) { // 8MB limit
-						// Try with lower quality
-						const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
-						if (compressedDataUrl.length > 8 * 1024 * 1024) {
-							throw new Error('Файлът е твърде голям дори след компресия. Моля изберете по-малка снимка.');
+					do {
+						dataUrl = canvas.toDataURL('image/jpeg', quality);
+						
+						// Validate the result
+						if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+							throw new Error('Failed to process image');
 						}
-						resolve(compressedDataUrl);
-					} else {
-						resolve(dataUrl);
+						
+						// Check size (mobile browsers have stricter limits)
+						if (dataUrl.length <= 4 * 1024 * 1024) { // 4MB limit for mobile
+							break;
+						}
+						
+						quality -= 0.1;
+					} while (quality > 0.3);
+					
+					if (dataUrl.length > 4 * 1024 * 1024) {
+						throw new Error('Файлът е твърде голям дори след компресия. Моля изберете по-малка снимка.');
 					}
+					
+					// Additional validation for mobile
+					if (dataUrl.length < 1000) {
+						throw new Error('Обработената снимка е твърде малка. Моля опитайте с друга снимка.');
+					}
+					
+					resolve(dataUrl);
 				} catch (error) {
+					clearTimeout(timeout);
+					console.error('Error processing image:', error);
 					reject(error);
 				}
 			};
 			
 			img.onerror = () => {
-				reject(new Error('Грешка при зареждане на изображението'));
+				clearTimeout(timeout);
+				reject(new Error('Грешка при зареждане на изображението. Моля проверете дали файлът е валидна снимка.'));
 			};
 			
 			// Create object URL for the image
-			const objectUrl = URL.createObjectURL(file);
-			img.src = objectUrl;
-			
-			// Clean up object URL after loading
-			img.onload = (originalOnload => function() {
-				URL.revokeObjectURL(objectUrl);
-				return originalOnload.apply(this, arguments);
-			})(img.onload);
+			try {
+				const objectUrl = URL.createObjectURL(file);
+				img.src = objectUrl;
+				
+				// Clean up object URL after loading
+				const originalOnload = img.onload;
+				img.onload = function() {
+					URL.revokeObjectURL(objectUrl);
+					return originalOnload.apply(this, arguments);
+				};
+			} catch (error) {
+				clearTimeout(timeout);
+				reject(new Error('Грешка при четене на файла. Моля опитайте с друга снимка.'));
+			}
 		});
 	};
 
@@ -560,19 +663,35 @@ export default function Home() {
 								×
 							</button>
 							
-							<div className="aspect-square rounded-xl overflow-hidden mb-4 bg-gradient-to-br from-pink-100 to-purple-100">
-								<img
-									src={item.src}
-									alt={item.title}
-									className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-									onError={(e) => {
-										console.error('Gallery image failed to load:', item.id);
-										e.target.style.display = 'none';
-										e.target.nextSibling.style.display = 'flex';
-									}}
-								/>
-								<div className="w-full h-full hidden items-center justify-center text-gray-400 text-4xl">
-									📷
+							<div className="aspect-square rounded-xl overflow-hidden mb-4 bg-gradient-to-br from-pink-100 to-purple-100 relative">
+								{item.src ? (
+									<img
+										src={item.src}
+										alt={item.title}
+										className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+										loading="lazy"
+										onError={(e) => {
+											console.error('Gallery image failed to load:', item.id, 'Data URL length:', item.src?.length || 0);
+											e.target.style.display = 'none';
+											const errorDiv = e.target.nextSibling;
+											if (errorDiv) {
+												errorDiv.style.display = 'flex';
+											}
+										}}
+										onLoad={(e) => {
+											// Hide error div if image loads successfully
+											const errorDiv = e.target.nextSibling;
+											if (errorDiv) {
+												errorDiv.style.display = 'none';
+											}
+										}}
+									/>
+								) : null}
+								<div className={`w-full h-full ${item.src ? 'hidden' : 'flex'} items-center justify-center text-gray-400 text-4xl absolute inset-0 bg-gradient-to-br from-pink-100 to-purple-100`}>
+									<div className="text-center">
+										<div className="text-4xl mb-2">📷</div>
+										<div className="text-sm text-gray-600">Грешка при зареждане</div>
+									</div>
 								</div>
 							</div>
 							
