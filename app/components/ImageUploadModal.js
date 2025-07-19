@@ -25,10 +25,10 @@ export default function ImageUploadModal({
 					📝 Преглед и име на снимката
 				</h2>
 				
-				{/* Enhanced Preview of selected image with Samsung A23 optimizations */}
+				{/* Simple Image Preview */}
 				{pendingFile && (
 					<div className="w-full mb-4">
-						<SamsungOptimizedImagePreview 
+						<SimpleImagePreview 
 							file={pendingFile} 
 							key={fileKey}
 						/>
@@ -77,414 +77,67 @@ export default function ImageUploadModal({
 	);
 }
 
-// Samsung A23-optimized image preview component with simplified state management
-function SamsungOptimizedImagePreview({ file }) {
-	const [previewState, setPreviewState] = useState({
-		url: null,
-		loading: true,
-		error: false,
-		imageLoaded: false,
-		loadMethod: null
-	});
-	
-	const imgRef = useRef(null);
+// Simple image preview component - no loading states, just show the image
+function SimpleImagePreview({ file }) {
+	const [previewUrl, setPreviewUrl] = useState(null);
 	const objectUrlRef = useRef(null);
-	const fileReaderRef = useRef(null);
-	const cleanupExecutedRef = useRef(false);
-	const retryCountRef = useRef(0);
-	const timeoutRef = useRef(null);
 	
-	// Detect Samsung device/browser
-	const isSamsungDevice = useCallback(() => {
-		if (typeof window === 'undefined') return false;
-		const userAgent = navigator.userAgent || '';
-		return /samsung|samsungbrowser|sm-a235|galaxy a23/i.test(userAgent);
-	}, []);
-	
-	// Samsung-specific configuration
-	const config = {
-		maxRetries: isSamsungDevice() ? 3 : 2,
-		timeout: isSamsungDevice() ? 10000 : 7000,
-		preferFileReader: isSamsungDevice(), // Samsung works better with FileReader
-		aggressiveCleanup: isSamsungDevice(),
-		processingDelay: isSamsungDevice() ? 300 : 100
-	};
-	
-	// Comprehensive cleanup function
-	const performCleanup = useCallback(() => {
-		if (cleanupExecutedRef.current) return;
-		cleanupExecutedRef.current = true;
-		
-		console.log('Samsung A23: Performing comprehensive cleanup');
-		
-		// Clear timeout
-		if (timeoutRef.current) {
-			clearTimeout(timeoutRef.current);
-			timeoutRef.current = null;
-		}
-		
-		// Cleanup object URL
-		if (objectUrlRef.current) {
-			try {
-				URL.revokeObjectURL(objectUrlRef.current);
-				console.log('Samsung A23: Object URL revoked');
-			} catch (e) {
-				console.warn('Samsung A23: Failed to revoke object URL:', e);
-			}
-			objectUrlRef.current = null;
-		}
-		
-		// Cleanup FileReader
-		if (fileReaderRef.current) {
-			try {
-				fileReaderRef.current.abort();
-				console.log('Samsung A23: FileReader aborted');
-			} catch (e) {
-				console.warn('Samsung A23: Failed to abort FileReader:', e);
-			}
-			fileReaderRef.current = null;
-		}
-		
-		// Samsung-specific: Force garbage collection hint
-		if (config.aggressiveCleanup && window.gc) {
-			try {
-				window.gc();
-			} catch (e) {
-				// Ignore if gc is not available
-			}
-		}
-	}, [config.aggressiveCleanup]);
-	
-	// Reset state for new file
-	const resetState = useCallback(() => {
-		setPreviewState({
-			url: null,
-			loading: true,
-			error: false,
-			imageLoaded: false,
-			loadMethod: null
-		});
-		retryCountRef.current = 0;
-		cleanupExecutedRef.current = false;
-	}, []);
-	
-	// Simplified file to URL conversion 
-	const createPreviewUrl = useCallback(async () => {
-		if (!file || cleanupExecutedRef.current) return;
-		
-		console.log('Creating preview URL, attempt:', retryCountRef.current + 1);
-		
-		// Set initial loading state
-		setPreviewState(prev => ({
-			...prev,
-			loading: true,
-			error: false,
-			url: null,
-			imageLoaded: false
-		}));
-		
-		cleanupExecutedRef.current = false;
-		
-		// Set processing timeout
-		timeoutRef.current = setTimeout(() => {
-			if (!cleanupExecutedRef.current) {
-				console.log('Preview creation timeout');
-				if (retryCountRef.current < config.maxRetries) {
-					retryCountRef.current++;
-					setTimeout(() => createPreviewUrl(), 500);
-				} else {
-					setPreviewState(prev => ({ 
-						...prev, 
-						loading: false, 
-						error: true,
-						url: null
-					}));
-				}
-			}
-		}, config.timeout);
-		
-		// Strategy 1: FileReader (preferred for Samsung)
-		const tryFileReader = () => {
-			return new Promise((resolve, reject) => {
-				if (cleanupExecutedRef.current) {
-					reject(new Error('Cleanup executed'));
-					return;
-				}
-				
-				console.log('Samsung A23: Trying FileReader method');
-				const reader = new FileReader();
-				fileReaderRef.current = reader;
-				
-				reader.onload = (e) => {
-					if (cleanupExecutedRef.current || !e.target?.result) {
-						reject(new Error('Reader cleanup or no result'));
-						return;
-					}
-					console.log('Samsung A23: FileReader success');
-					resolve({ url: e.target.result, method: 'FileReader' });
-				};
-				
-				reader.onerror = (e) => {
-					console.error('Samsung A23: FileReader error:', e);
-					reject(new Error('FileReader failed'));
-				};
-				
-				reader.onabort = () => {
-					reject(new Error('FileReader aborted'));
-				};
-				
-				try {
-					reader.readAsDataURL(file);
-				} catch (error) {
-					reject(error);
-				}
-			});
-		};
-		
-		// Strategy 2: Object URL (fallback)
-		const tryObjectURL = () => {
-			return new Promise((resolve, reject) => {
-				if (cleanupExecutedRef.current) {
-					reject(new Error('Cleanup executed'));
-					return;
-				}
-				
-				console.log('Samsung A23: Trying Object URL method');
-				
-				try {
-					// Clean up any existing object URL first
-					if (objectUrlRef.current) {
-						URL.revokeObjectURL(objectUrlRef.current);
-						objectUrlRef.current = null;
-					}
-					
-					const objectUrl = URL.createObjectURL(file);
-					objectUrlRef.current = objectUrl;
-					
-					// Test the URL with a temporary image
-					const testImg = new Image();
-					const testTimeout = setTimeout(() => {
-						reject(new Error('Object URL test timeout'));
-					}, 3000);
-					
-					testImg.onload = () => {
-						clearTimeout(testTimeout);
-						console.log('Samsung A23: Object URL success');
-						resolve({ url: objectUrl, method: 'ObjectURL' });
-					};
-					
-					testImg.onerror = () => {
-						clearTimeout(testTimeout);
-						reject(new Error('Object URL test failed'));
-					};
-					
-					testImg.src = objectUrl;
-					
-				} catch (error) {
-					reject(error);
-				}
-			});
-		};
-		
-		// Try creating preview URL
-		try {
-			let result;
-			
-			// Try FileReader first for Samsung, Object URL for others
-			if (config.preferFileReader) {
-				try {
-					result = await tryFileReader();
-				} catch (e) {
-					console.log('FileReader failed, trying Object URL');
-					result = await tryObjectURL();
-				}
-			} else {
-				try {
-					result = await tryObjectURL();
-				} catch (e) {
-					console.log('Object URL failed, trying FileReader');
-					result = await tryFileReader();
-				}
-			}
-			
-			if (cleanupExecutedRef.current) return;
-			
-			// Clear timeout and set URL (but keep loading until image loads)
-			clearTimeout(timeoutRef.current);
-			setPreviewState(prev => ({
-				...prev,
-				url: result.url,
-				loading: true, // Keep loading until image onLoad fires
-				error: false,
-				imageLoaded: false,
-				loadMethod: result.method
-			}));
-			
-		} catch (error) {
-			if (cleanupExecutedRef.current) return;
-			
-			console.error('Samsung A23: All preview methods failed:', error);
-			clearTimeout(timeoutRef.current);
-			
-			if (retryCountRef.current < config.maxRetries) {
-				retryCountRef.current++;
-				console.log(`Samsung A23: Retrying (${retryCountRef.current}/${config.maxRetries})`);
-				setTimeout(() => createPreviewUrl(), 1000);
-			} else {
-				setPreviewState(prev => ({ ...prev, loading: false, error: true }));
-			}
-		}
-	}, [file, config, resetState]);
-	
-	// Handle successful image load
-	const handleImageLoad = useCallback(() => {
-		if (cleanupExecutedRef.current) return;
-		
-		console.log('Image rendered successfully');
-		setPreviewState(prev => ({ 
-			...prev, 
-			loading: false,    // Stop loading when image actually loads
-			imageLoaded: true,
-			error: false
-		}));
-	}, []);
-	
-	// Handle image load error with retry logic
-	const handleImageError = useCallback((e) => {
-		if (cleanupExecutedRef.current) return;
-		
-		console.error('Samsung A23: Image rendering failed:', e);
-		
-		if (retryCountRef.current < config.maxRetries) {
-			retryCountRef.current++;
-			console.log(`Samsung A23: Image error, retrying (${retryCountRef.current}/${config.maxRetries})`);
-			
-			// Reset and retry
-			setPreviewState(prev => ({ 
-				...prev, 
-				loading: true, 
-				error: false, 
-				imageLoaded: false,
-				url: null 
-			}));
-			
-			setTimeout(() => createPreviewUrl(), 500);
-		} else {
-			setPreviewState(prev => ({ ...prev, error: true, loading: false }));
-		}
-	}, [config.maxRetries, createPreviewUrl]);
-	
-	// Manual retry function
-	const handleRetry = useCallback(() => {
-		retryCountRef.current = 0;
-		performCleanup();
-		cleanupExecutedRef.current = false;
-		setTimeout(() => createPreviewUrl(), config.processingDelay);
-	}, [createPreviewUrl, performCleanup, config.processingDelay]);
-	
-	// Effect to create preview when file changes
+	// Create preview URL immediately when file changes
 	useEffect(() => {
 		if (!file) {
-			setPreviewState({
-				url: null,
-				loading: false,
-				error: false,
-				imageLoaded: false,
-				loadMethod: null
-			});
+			setPreviewUrl(null);
 			return;
 		}
 		
-		// Add delay for Samsung processing
-		const timer = setTimeout(() => {
-			createPreviewUrl();
-		}, config.processingDelay);
+		// Clean up previous URL
+		if (objectUrlRef.current) {
+			URL.revokeObjectURL(objectUrlRef.current);
+		}
+		
+		// Create new URL
+		try {
+			const url = URL.createObjectURL(file);
+			objectUrlRef.current = url;
+			setPreviewUrl(url);
+		} catch (error) {
+			console.error('Failed to create preview URL:', error);
+			setPreviewUrl(null);
+		}
 		
 		// Cleanup function
 		return () => {
-			clearTimeout(timer);
-			performCleanup();
+			if (objectUrlRef.current) {
+				URL.revokeObjectURL(objectUrlRef.current);
+				objectUrlRef.current = null;
+			}
 		};
-	}, [file, createPreviewUrl, performCleanup, config.processingDelay]);
+	}, [file]);
 	
-	// Loading state
-	if (previewState.loading) {
-		return (
-			<div className="w-full aspect-square max-h-64 bg-gray-50 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-200">
-				<div className="flex flex-col items-center p-4">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mb-3"></div>
-					<p className="text-sm text-gray-600 text-center">Зареждане на преглед...</p>
-					<p className="text-xs text-gray-500 mt-1 text-center">
-						{file?.name ? `Обработва: ${file.name.substring(0, 20)}${file.name.length > 20 ? '...' : ''}` : 'Обработва файла...'}
-					</p>
-					{isSamsungDevice() && (
-						<p className="text-xs text-blue-500 mt-1">
-							Samsung режим: Опит {retryCountRef.current + 1}
-						</p>
-					)}
-				</div>
-			</div>
-		);
+	// Don't show anything if no URL
+	if (!previewUrl) {
+		return null;
 	}
 	
-	// Error state
-	if (previewState.error || !previewState.url) {
-		return (
-			<div className="w-full aspect-square max-h-64 bg-gray-50 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-200">
-				<div className="flex flex-col items-center text-center p-4">
-					<div className="text-3xl mb-2 text-gray-400">⚠️</div>
-					<p className="text-sm text-gray-600 mb-2">
-						Прегледът не може да се зареди
-					</p>
-					<p className="text-xs text-gray-500 mb-3">
-						Файл: {file?.name || 'Неизвестен'}
-						<br />
-						Размер: {file?.size ? Math.round(file.size / 1024) + ' KB' : 'Неизвестен'}
-						<br />
-						Опити: {retryCountRef.current + 1}/{config.maxRetries + 1}
-						{isSamsungDevice() && <><br />Устройство: Samsung</>}
-					</p>
-					<button
-						onClick={handleRetry}
-						className="px-3 py-1 bg-pink-500 text-white text-xs rounded hover:bg-pink-600 transition-colors"
-					>
-						Опитай отново
-					</button>
-				</div>
-			</div>
-		);
-	}
-	
-	// Success state with image preview
+	// Show image immediately
 	return (
 		<div className="w-full">
-			<div className="aspect-square max-h-64 bg-gray-50 rounded-xl overflow-hidden shadow-inner relative border">
+			<div className="aspect-square max-h-64 bg-gray-50 rounded-xl overflow-hidden shadow-inner border">
 				<img
-					ref={imgRef}
-					src={previewState.url}
+					src={previewUrl}
 					alt="Preview"
 					className="w-full h-full object-cover"
-					onLoad={handleImageLoad}
-					onError={handleImageError}
 					style={{
 						imageRendering: 'auto',
 						backfaceVisibility: 'hidden',
-						transform: 'translateZ(0)', // Force hardware acceleration
+						transform: 'translateZ(0)',
 					}}
 				/>
 			</div>
 			
-			{/* Image metadata info */}
-			<div className="mt-2 text-xs text-gray-500 text-center space-y-1">
+			{/* Simple file info */}
+			<div className="mt-2 text-xs text-gray-500 text-center">
 				<p>📁 {file?.name || 'Неизвестен файл'}</p>
 				<p>📏 {file?.size ? Math.round(file.size / 1024) + ' KB' : 'Неизвестен размер'}</p>
-				{file?.type && <p>🎨 {file.type}</p>}
-				{previewState.loadMethod && (
-					<p className="text-blue-500">📱 Метод: {previewState.loadMethod}</p>
-				)}
-				{isSamsungDevice() && (
-					<p className="text-blue-500">🔧 Samsung оптимизация</p>
-				)}
 			</div>
 		</div>
 	);
