@@ -2,8 +2,6 @@ import { useState, useRef } from "react";
 import GalleryGrid from "./GalleryGrid";
 import ImageUploadModal from "./ImageUploadModal";
 import ErrorMessage from "./ErrorMessage";
-import { resetFileInput, logFileInfo } from "../utils/fileUtils";
-import { isSamsung, isSamsungInternet, hasCameraSupport } from "../utils/mobileUtils";
 
 export default function GallerySection({ 
 	galleryImages, 
@@ -21,29 +19,14 @@ export default function GallerySection({
 
 	const handleImageUpload = async (event) => {
 		const file = event.target.files[0];
-		
-		// Samsung A23: Log file info for debugging
-		const samsungDevice = isSamsung();
-		const samsungBrowser = isSamsungInternet();
-		
-		if (samsungDevice || samsungBrowser) {
-			console.log('Samsung A23: File input triggered');
-			logFileInfo(file, 'Samsung A23 file selection:');
-		}
-		
 		if (file) {
-			// Validate file size (max 5MB, but more forgiving for Samsung A23)
-			const maxSize = samsungDevice ? 10 * 1024 * 1024 : 5 * 1024 * 1024; // 10MB for Samsung, 5MB for others
-			if (file.size > maxSize) {
-				setError(`Файлът е твърде голям. Максималният размер е ${maxSize / (1024 * 1024)}MB.`);
-				// Samsung A23: Reset input after error to prevent caching issues
-				if (samsungDevice || samsungBrowser) {
-					setTimeout(() => resetFileInput(fileInputRef.current), 100);
-				}
+			// Validate file size (max 5MB)
+			if (file.size > 5 * 1024 * 1024) {
+				setError('Файлът е твърде голям. Максималният размер е 5MB.');
 				return;
 			}
 
-			// Validate file type (more permissive for Samsung camera photos)
+			// Validate file type
 			const validImageTypes = [
 				'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
 				'image/bmp', 'image/webp', 'image/svg+xml', 'image/tiff', 
@@ -52,26 +35,16 @@ export default function GallerySection({
 			
 			const isValidType = file.type.startsWith('image/') || 
 				validImageTypes.includes(file.type) ||
-				/\.(jpg|jpeg|png|gif|bmp|webp|svg|tiff|tif|ico|heic|heif)$/i.test(file.name) ||
-				// Samsung A23: Camera photos sometimes have no type
-				(samsungDevice && file.name && /camera|photo|img/i.test(file.name));
+				/\.(jpg|jpeg|png|gif|bmp|webp|svg|tiff|tif|ico|heic|heif)$/i.test(file.name);
 			
 			if (!isValidType) {
 				setError('Моля изберете валиден файл с изображение.');
-				// Samsung A23: Reset input after error
-				if (samsungDevice || samsungBrowser) {
-					setTimeout(() => resetFileInput(fileInputRef.current), 100);
-				}
 				return;
 			}
 
 			// Additional mobile-specific validations
 			if (file.size === 0) {
 				setError('Файлът е празен или повреден.');
-				// Samsung A23: Reset input after error
-				if (samsungDevice || samsungBrowser) {
-					setTimeout(() => resetFileInput(fileInputRef.current), 100);
-				}
 				return;
 			}
 			
@@ -81,17 +54,8 @@ export default function GallerySection({
 			setPendingFile(file);
 			setShowRenameModal(true);
 		}
-		// Samsung A23: Enhanced input reset for repeated uploads
-		if (samsungDevice || samsungBrowser) {
-			console.log('Samsung A23: Resetting file input for repeated uploads');
-			// Delay reset to ensure file processing is complete
-			setTimeout(() => {
-				resetFileInput(event.target);
-			}, 200);
-		} else {
-			// Standard reset for other devices
-			event.target.value = '';
-		}
+		// Reset the input so the same file can be selected again
+		event.target.value = '';
 	};
 
 	const handleConfirmUpload = async () => {
@@ -105,18 +69,6 @@ export default function GallerySection({
 			setShowRenameModal(false);
 			setPendingFile(null);
 			setNewImageName("");
-			
-			// Samsung A23: Additional cleanup after successful upload
-			const samsungDevice = isSamsung();
-			const samsungBrowser = isSamsungInternet();
-			if (samsungDevice || samsungBrowser) {
-				console.log('Samsung A23: Cleaning up after successful upload');
-				setTimeout(() => {
-					if (fileInputRef.current) {
-						resetFileInput(fileInputRef.current);
-					}
-				}, 300);
-			}
 		}
 	};
 
@@ -125,18 +77,6 @@ export default function GallerySection({
 		setPendingFile(null);
 		setNewImageName("");
 		setError(null);
-		
-		// Samsung A23: Additional cleanup when canceling upload
-		const samsungDevice = isSamsung();
-		const samsungBrowser = isSamsungInternet();
-		if (samsungDevice || samsungBrowser) {
-			console.log('Samsung A23: Cleaning up after cancel');
-			setTimeout(() => {
-				if (fileInputRef.current) {
-					resetFileInput(fileInputRef.current);
-				}
-			}, 100);
-		}
 	};
 
 	const handleAddPhotoClick = () => {
@@ -154,22 +94,14 @@ export default function GallerySection({
 			{/* Error Display */}
 			<ErrorMessage error={error} onDismiss={() => setError(null)} />
 			
-			{/* Hidden file input with Samsung A23 optimizations */}
+			{/* Hidden file input */}
 			<input
 				ref={fileInputRef}
 				type="file"
-				accept={isSamsung() || isSamsungInternet() ? 
-					"image/*,image/jpeg,image/jpg,image/png,image/gif,image/bmp,image/webp" : 
-					"image/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.tiff,.tif,.ico,.heic,.heif"
-				}
-				capture={hasCameraSupport() ? "environment" : undefined}
+				accept="image/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.tiff,.tif,.ico,.heic,.heif"
 				onChange={handleImageUpload}
 				className="hidden"
 				disabled={uploading}
-				// Samsung A23: Additional attributes for better compatibility
-				style={{ display: 'none' }}
-				tabIndex={-1}
-				aria-hidden="true"
 			/>
 			
 			{/* Add Photo Button */}
