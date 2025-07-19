@@ -1,5 +1,120 @@
+// Optimized JPG processing for faster uploads
+export const processJPGForUpload = async (file) => {
+	return new Promise((resolve, reject) => {
+		try {
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d');
+			
+			if (!ctx) {
+				reject(new Error('Canvas не се поддържа'));
+				return;
+			}
+			
+			const img = new Image();
+			
+			img.onload = () => {
+				try {
+					let { width, height } = img;
+					
+					// JPG-optimized dimensions (faster processing)
+					const maxDimension = 1200; // Slightly higher for JPG quality
+					
+					// Calculate optimal dimensions for JPG
+					if (width > maxDimension || height > maxDimension) {
+						const ratio = Math.min(maxDimension / width, maxDimension / height);
+						width = Math.floor(width * ratio);
+						height = Math.floor(height * ratio);
+					}
+					
+					// Set canvas size
+					canvas.width = width;
+					canvas.height = height;
+					
+					// Optimized settings for JPG
+					ctx.imageSmoothingEnabled = true;
+					ctx.imageSmoothingQuality = 'high';
+					
+					// Draw image
+					ctx.drawImage(img, 0, 0, width, height);
+					
+					// JPG-optimized compression (faster than progressive)
+					const quality = 0.85; // High quality for JPG
+					const dataUrl = canvas.toDataURL('image/jpeg', quality);
+					
+					// Convert to blob for faster upload
+					canvas.toBlob((blob) => {
+						if (blob) {
+							resolve(blob);
+						} else {
+							reject(new Error('Грешка при създаване на JPG файл'));
+						}
+					}, 'image/jpeg', quality);
+					
+				} catch (error) {
+					console.error('JPG processing error:', error);
+					reject(new Error('Грешка при обработка на JPG'));
+				}
+			};
+			
+			img.onerror = () => {
+				reject(new Error('Грешка при зареждане на изображението'));
+			};
+			
+			// Load image
+			img.src = URL.createObjectURL(file);
+			
+		} catch (error) {
+			reject(new Error('Грешка при обработка на файла'));
+		}
+	});
+};
+
+// Fast JPG validation and optimization
+export const optimizeJPGFile = async (file) => {
+	// Check if it's already a JPG and size is reasonable
+	if (file.type === 'image/jpeg' && file.size < 1024 * 1024) { // < 1MB
+		return file; // Return original if already optimized
+	}
+	
+	// Process for optimization
+	try {
+		const optimizedBlob = await processJPGForUpload(file);
+		
+		// Create new file with original name but .jpg extension
+		const fileName = file.name.replace(/\.[^/.]+$/, '') + '.jpg';
+		const optimizedFile = new File([optimizedBlob], fileName, {
+			type: 'image/jpeg',
+			lastModified: Date.now()
+		});
+		
+		console.log('JPG optimization:', {
+			original: Math.round(file.size / 1024) + 'KB',
+			optimized: Math.round(optimizedFile.size / 1024) + 'KB',
+			savings: Math.round((1 - optimizedFile.size / file.size) * 100) + '%'
+		});
+		
+		return optimizedFile;
+	} catch (error) {
+		console.error('JPG optimization failed:', error);
+		return file; // Return original if optimization fails
+	}
+};
+
+// Quick file format detection for JPG
+export const isJPGFormat = (file) => {
+	return file.type === 'image/jpeg' || 
+		   file.type === 'image/jpg' || 
+		   /\.(jpg|jpeg)$/i.test(file.name);
+};
+
 // Process image for mobile compatibility
 export const processImageForMobile = async (file) => {
+	// Fast path for JPG files
+	if (isJPGFormat(file)) {
+		return optimizeJPGFile(file);
+	}
+	
+	// Original processing for other formats
 	return new Promise((resolve, reject) => {
 		try {
 			// More robust element creation for mobile

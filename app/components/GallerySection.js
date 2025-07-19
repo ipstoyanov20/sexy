@@ -115,6 +115,8 @@ export default function GallerySection({
 			hasFile: !!file,
 			fileName: file?.name,
 			fileSize: file?.size,
+			fileType: file?.type,
+			isJPG: file?.type === 'image/jpeg' || /\.jpe?g$/i.test(file?.name || ''),
 			isSamsung: isSamsungDevice()
 		});
 
@@ -256,7 +258,7 @@ export default function GallerySection({
 			<input
 				ref={fileInputRef}
 				type="file"
-				accept="image/*"
+				accept="image/jpeg,image/jpg,image/png,image/webp,image/*"
 				onChange={handleImageUpload}
 				className="hidden"
 				disabled={uploading}

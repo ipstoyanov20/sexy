@@ -1,6 +1,16 @@
 import { useState, useEffect } from "react";
 import { useSupabase } from "./useSupabase";
-import { processImageForMobile } from "../utils/imageUtils";
+import { processImageForMobile, optimizeJPGFile, isJPGFormat } from "../utils/imageUtils";
+
+// Helper function to convert File/Blob to data URL
+const convertFileToDataURL = (file) => {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = (e) => resolve(e.target.result);
+		reader.onerror = (e) => reject(new Error('Failed to read file'));
+		reader.readAsDataURL(file);
+	});
+};
 
 export function useGallery() {
 	const [galleryImages, setGalleryImages] = useState([]);
@@ -40,8 +50,20 @@ export function useGallery() {
 				minute: '2-digit' 
 			}); // HH:MM format
 
-			// Process and compress image for mobile compatibility
-			const imageDataUrl = await processImageForMobile(file);
+			// Fast JPG optimization or standard processing
+			let processedFile;
+			if (isJPGFormat(file)) {
+				console.log('🚀 Fast JPG optimization enabled');
+				processedFile = await optimizeJPGFile(file);
+			} else {
+				console.log('🔄 Standard image processing');
+				processedFile = await processImageForMobile(file);
+			}
+			
+			// Convert to data URL for database storage
+			const imageDataUrl = typeof processedFile === 'string' ? 
+				processedFile : 
+				await convertFileToDataURL(processedFile);
 
 			// Prepare image data
 			const imageData = {
