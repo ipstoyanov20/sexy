@@ -69,7 +69,7 @@ export default function ImageUploadModal({
 						disabled={uploading || !newImageName.trim()}
 						className="flex-1 px-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl text-base"
 					>
-						{uploading ? "Качване..." : "Качи ✨"}
+						Качи ✨
 					</button>
 				</div>
 			</div>
@@ -124,7 +124,7 @@ function SimpleImagePreview({ file }) {
 			<div className="aspect-square max-h-64 bg-gray-50 rounded-xl overflow-hidden shadow-inner border">
 				<img
 					src={previewUrl}
-					alt="Preview"
+					alt=""
 					className="w-full h-full object-cover"
 					style={{
 						imageRendering: 'auto',

@@ -24,7 +24,7 @@ export default function GalleryGrid({ images, loading, onDeleteImage, onAddPhoto
 						disabled={uploading}
 						className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-lg"
 					>
-						{uploading ? "Качване..." : "Добави първата снимка 🎉"}
+						Добави първата снимка 🎉
 					</button>
 				</div>
 			</div>

@@ -274,7 +274,7 @@ export default function GallerySection({
 					className="bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 hover:from-pink-600 hover:via-purple-600 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center gap-3 text-base sm:text-lg"
 				>
 					<span className="text-xl">📷</span>
-					{uploading ? "Качване..." : "Добави снимка"}
+					Добави снимка
 					<span className="text-xl">✨</span>
 				</button>
 			</div>
