@@ -20,7 +20,7 @@ export default function ImageUploadModal({
 					📝 Име на снимката
 				</h2>
 				
-				{/* Preview of selected image */}
+				{/* Preview of selected image - only show if file exists and can be previewed */}
 				{pendingFile && (
 					<div className="w-32 h-32 mx-auto mb-4 rounded-xl overflow-hidden bg-gray-100">
 						<ImagePreview file={pendingFile} />
@@ -69,17 +69,27 @@ export default function ImageUploadModal({
 	);
 }
 
-// Separate component for image preview to handle mobile issues
+// Enhanced image preview component without placeholder
 function ImagePreview({ file }) {
 	const [previewUrl, setPreviewUrl] = useState(null);
 	const [error, setError] = useState(false);
+	const [loading, setLoading] = useState(true);
 	
 	useEffect(() => {
-		if (!file) return;
+		if (!file) {
+			setPreviewUrl(null);
+			setError(false);
+			setLoading(false);
+			return;
+		}
+		
+		setLoading(true);
+		setError(false);
 		
 		try {
 			const url = URL.createObjectURL(file);
 			setPreviewUrl(url);
+			setLoading(false);
 			
 			// Cleanup function
 			return () => {
@@ -88,13 +98,20 @@ function ImagePreview({ file }) {
 		} catch (error) {
 			console.error('Failed to create preview URL:', error);
 			setError(true);
+			setLoading(false);
 		}
 	}, [file]);
 	
+	// Don't render anything if there's an error or no preview URL
 	if (error || !previewUrl) {
+		return null;
+	}
+	
+	// Show loading spinner while processing
+	if (loading) {
 		return (
-			<div className="w-full h-full flex items-center justify-center text-gray-500 text-2xl">
-				📷
+			<div className="w-full h-full flex items-center justify-center bg-gray-50">
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
 			</div>
 		);
 	}
@@ -105,6 +122,7 @@ function ImagePreview({ file }) {
 			alt="Preview"
 			className="w-full h-full object-cover"
 			onError={() => setError(true)}
+			onLoad={() => setLoading(false)}
 		/>
 	);
 }

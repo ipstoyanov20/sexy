@@ -60,8 +60,10 @@ export default function GalleryGrid({ images, loading, onDeleteImage, onAddPhoto
 								e.target.nextSibling?.style.setProperty('display', 'flex');
 							}}
 						/>
-						<div className="absolute inset-0 hidden items-center justify-center text-gray-400 text-4xl bg-gray-100">
-							📷
+						<div className="absolute inset-0 hidden items-center justify-center text-gray-400 text-sm bg-gray-100">
+							<span className="text-center px-2">
+								Изображението не може да се зареди
+							</span>
 						</div>
 					</div>
 					
