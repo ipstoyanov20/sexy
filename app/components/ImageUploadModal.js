@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import ErrorMessage from "./ErrorMessage";
+import { generateFileKey, logFileInfo } from "../utils/fileUtils";
 
 export default function ImageUploadModal({
 	showModal,
@@ -23,7 +24,10 @@ export default function ImageUploadModal({
 				{/* Enhanced Preview of selected image */}
 				{pendingFile && (
 					<div className="w-full mb-4">
-						<MobileImagePreview file={pendingFile} />
+						<MobileImagePreview 
+							file={pendingFile} 
+							key={generateFileKey(pendingFile)}
+						/>
 					</div>
 				)}
 				
@@ -69,126 +73,288 @@ export default function ImageUploadModal({
 	);
 }
 
-// Enhanced mobile-optimized image preview component
+// Enhanced mobile-optimized image preview component with reliable repeated upload handling
 function MobileImagePreview({ file }) {
-	const [previewUrl, setPreviewUrl] = useState(null);
-	const [error, setError] = useState(false);
-	const [loading, setLoading] = useState(true);
-	const [fallbackData, setFallbackData] = useState(null);
-	const imgRef = useRef(null);
+	const [previewState, setPreviewState] = useState({
+		url: null,
+		loading: true,
+		error: false,
+		imageLoaded: false
+	});
 	
-	useEffect(() => {
-		if (!file) return;
+	const imgRef = useRef(null);
+	const objectUrlRef = useRef(null);
+	const fileReaderRef = useRef(null);
+	const cleanupRef = useRef(false);
+	const retryCountRef = useRef(0);
+	
+	// Reset state when file changes
+	const resetState = useCallback(() => {
+		setPreviewState({
+			url: null,
+			loading: true,
+			error: false,
+			imageLoaded: false
+		});
+		retryCountRef.current = 0;
+		cleanupRef.current = false;
+	}, []);
+	
+	// Cleanup function
+	const cleanup = useCallback(() => {
+		cleanupRef.current = true;
 		
-		let objectUrl = null;
-		let isCleanedUp = false;
-		
-		const createPreview = async () => {
+		// Cleanup object URL
+		if (objectUrlRef.current) {
 			try {
-				setLoading(true);
-				setError(false);
+				URL.revokeObjectURL(objectUrlRef.current);
+			} catch (e) {
+				console.warn('Failed to revoke object URL:', e);
+			}
+			objectUrlRef.current = null;
+		}
+		
+		// Cleanup FileReader
+		if (fileReaderRef.current) {
+			try {
+				fileReaderRef.current.abort();
+			} catch (e) {
+				console.warn('Failed to abort FileReader:', e);
+			}
+			fileReaderRef.current = null;
+		}
+	}, []);
+	
+	// Create preview with improved error handling and retry logic
+	const createPreview = useCallback(async () => {
+		if (!file || cleanupRef.current) return;
+		
+		resetState();
+		
+		logFileInfo(file, 'Creating preview for:');
+		
+		// Method 1: Try FileReader first (more reliable for mobile)
+		const tryFileReader = () => {
+			if (cleanupRef.current) return;
+			
+			console.log('Trying FileReader method...');
+			
+			const reader = new FileReader();
+			fileReaderRef.current = reader;
+			
+			reader.onload = (e) => {
+				if (cleanupRef.current || !e.target?.result) return;
 				
-				// Method 1: Try URL.createObjectURL first (fastest)
-				try {
-					objectUrl = URL.createObjectURL(file);
-					
-					// Test if the URL works by creating a temporary image
-					const testImg = new Image();
-					testImg.onload = () => {
-						if (!isCleanedUp) {
-							setPreviewUrl(objectUrl);
-							setLoading(false);
-						}
-					};
-					testImg.onerror = () => {
-						// If object URL fails, try FileReader fallback
-						console.log('Object URL failed, trying FileReader fallback');
-						tryFileReaderFallback();
-					};
-					testImg.src = objectUrl;
-					
-					// Set timeout for object URL method
-					setTimeout(() => {
-						if (loading && !isCleanedUp) {
-							console.log('Object URL timeout, trying FileReader fallback');
-							tryFileReaderFallback();
-						}
-					}, 3000);
-					
-				} catch (urlError) {
-					console.error('URL.createObjectURL failed:', urlError);
-					tryFileReaderFallback();
-				}
+				console.log('FileReader loaded successfully');
+				setPreviewState(prev => ({
+					...prev,
+					url: e.target.result,
+					loading: false,
+					error: false
+				}));
+			};
+			
+			reader.onerror = (e) => {
+				if (cleanupRef.current) return;
 				
-				// Method 2: FileReader fallback (more reliable for camera photos)
-				function tryFileReaderFallback() {
-					if (isCleanedUp) return;
-					
-					const reader = new FileReader();
-					reader.onload = (e) => {
-						if (!isCleanedUp) {
-							setFallbackData(e.target.result);
-							setPreviewUrl(e.target.result);
-							setLoading(false);
-						}
-					};
-					reader.onerror = (e) => {
-						console.error('FileReader failed:', e);
-						if (!isCleanedUp) {
-							setError(true);
-							setLoading(false);
-						}
-					};
-					
-					try {
-						reader.readAsDataURL(file);
-					} catch (readerError) {
-						console.error('FileReader readAsDataURL failed:', readerError);
-						if (!isCleanedUp) {
-							setError(true);
-							setLoading(false);
-						}
-					}
-				}
-				
-			} catch (error) {
-				console.error('Preview creation failed:', error);
-				if (!isCleanedUp) {
-					setError(true);
-					setLoading(false);
+				console.error('FileReader failed:', e);
+				tryObjectURL(); // Fallback to Object URL
+			};
+			
+			reader.onabort = () => {
+				if (cleanupRef.current) return;
+				console.log('FileReader aborted');
+			};
+			
+			try {
+				reader.readAsDataURL(file);
+			} catch (readerError) {
+				console.error('FileReader readAsDataURL failed:', readerError);
+				if (!cleanupRef.current) {
+					tryObjectURL(); // Fallback to Object URL
 				}
 			}
 		};
+		
+		// Method 2: Object URL fallback
+		const tryObjectURL = () => {
+			if (cleanupRef.current) return;
+			
+			console.log('Trying Object URL method...');
+			
+			try {
+				// Clean up any existing object URL first
+				if (objectUrlRef.current) {
+					URL.revokeObjectURL(objectUrlRef.current);
+					objectUrlRef.current = null;
+				}
+				
+				const objectUrl = URL.createObjectURL(file);
+				objectUrlRef.current = objectUrl;
+				
+				// Test the URL with a temporary image
+				const testImg = new Image();
+				
+				testImg.onload = () => {
+					if (cleanupRef.current) return;
+					
+					console.log('Object URL loaded successfully');
+					setPreviewState(prev => ({
+						...prev,
+						url: objectUrl,
+						loading: false,
+						error: false
+					}));
+				};
+				
+				testImg.onerror = () => {
+					if (cleanupRef.current) return;
+					
+					console.error('Object URL test failed');
+					handleError();
+				};
+				
+				// Add timeout for object URL test
+				setTimeout(() => {
+					if (cleanupRef.current) return;
+					
+					if (previewState.loading && retryCountRef.current < 2) {
+						console.log('Object URL timeout, retrying...');
+						retryCountRef.current++;
+						createPreview();
+					} else if (previewState.loading) {
+						console.error('Object URL timeout, giving up');
+						handleError();
+					}
+				}, 5000);
+				
+				testImg.src = objectUrl;
+				
+			} catch (urlError) {
+				console.error('URL.createObjectURL failed:', urlError);
+				if (!cleanupRef.current) {
+					handleError();
+				}
+			}
+		};
+		
+		// Handle final error state
+		const handleError = () => {
+			if (cleanupRef.current) return;
+			
+			console.error('All preview methods failed');
+			setPreviewState(prev => ({
+				...prev,
+				loading: false,
+				error: true,
+				url: null
+			}));
+		};
+		
+		// Start with FileReader (more reliable for mobile repeated uploads)
+		tryFileReader();
+		
+	}, [file, resetState, previewState.loading]);
+	
+	// Handle image load success
+	const handleImageLoad = useCallback(() => {
+		if (cleanupRef.current) return;
+		
+		console.log('Preview image rendered successfully');
+		setPreviewState(prev => ({
+			...prev,
+			imageLoaded: true
+		}));
+	}, []);
+	
+	// Handle image load error
+	const handleImageError = useCallback((e) => {
+		if (cleanupRef.current) return;
+		
+		console.error('Preview image failed to render:', e);
+		
+		// Retry with the other method if we haven't already
+		if (retryCountRef.current < 1) {
+			retryCountRef.current++;
+			console.log('Retrying with alternative method...');
+			
+			// If FileReader was used, try Object URL
+			if (previewState.url && previewState.url.startsWith('data:')) {
+				// Clean up current URL and try object URL
+				setPreviewState(prev => ({ ...prev, loading: true, error: false, imageLoaded: false }));
+				
+				try {
+					if (objectUrlRef.current) {
+						URL.revokeObjectURL(objectUrlRef.current);
+					}
+					const objectUrl = URL.createObjectURL(file);
+					objectUrlRef.current = objectUrl;
+					
+					setPreviewState(prev => ({
+						...prev,
+						url: objectUrl,
+						loading: false
+					}));
+				} catch (error) {
+					console.error('Retry with Object URL failed:', error);
+					setPreviewState(prev => ({
+						...prev,
+						loading: false,
+						error: true
+					}));
+				}
+			} else {
+				// If Object URL was used, mark as error
+				setPreviewState(prev => ({
+					...prev,
+					loading: false,
+					error: true
+				}));
+			}
+		} else {
+			setPreviewState(prev => ({
+				...prev,
+				loading: false,
+				error: true
+			}));
+		}
+	}, [file, previewState.url]);
+	
+	// Effect to create preview when file changes
+	useEffect(() => {
+		if (!file) {
+			setPreviewState({
+				url: null,
+				loading: false,
+				error: false,
+				imageLoaded: false
+			});
+			return;
+		}
 		
 		createPreview();
 		
-		// Cleanup function
-		return () => {
-			isCleanedUp = true;
-			if (objectUrl) {
-				try {
-					URL.revokeObjectURL(objectUrl);
-				} catch (e) {
-					console.warn('Failed to revoke object URL:', e);
-				}
-			}
-		};
-	}, [file]);
+		// Cleanup on unmount or file change
+		return cleanup;
+	}, [file, createPreview, cleanup]);
 	
 	// Loading state
-	if (loading) {
+	if (previewState.loading) {
 		return (
 			<div className="w-full aspect-square max-h-64 bg-gray-100 rounded-xl flex items-center justify-center">
 				<div className="flex flex-col items-center">
 					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mb-2"></div>
 					<p className="text-sm text-gray-600">Зареждане на преглед...</p>
+					<p className="text-xs text-gray-500 mt-1">
+						{file?.name ? `Обработва: ${file.name}` : 'Обработва файла...'}
+					</p>
 				</div>
 			</div>
 		);
 	}
 	
 	// Error state
-	if (error || !previewUrl) {
+	if (previewState.error || !previewState.url) {
 		return (
 			<div className="w-full aspect-square max-h-64 bg-gray-100 rounded-xl flex items-center justify-center">
 				<div className="flex flex-col items-center text-center p-4">
@@ -200,7 +366,18 @@ function MobileImagePreview({ file }) {
 						Файл: {file?.name || 'Неизвестен'}
 						<br />
 						Размер: {file?.size ? Math.round(file.size / 1024) + ' KB' : 'Неизвестен'}
+						<br />
+						Опити: {retryCountRef.current + 1}
 					</p>
+					<button
+						onClick={() => {
+							retryCountRef.current = 0;
+							createPreview();
+						}}
+						className="mt-2 px-3 py-1 bg-pink-500 text-white text-xs rounded hover:bg-pink-600 transition-colors"
+					>
+						Опитай отново
+					</button>
 				</div>
 			</div>
 		);
@@ -209,24 +386,33 @@ function MobileImagePreview({ file }) {
 	// Success state with image preview
 	return (
 		<div className="w-full">
-			<div className="aspect-square max-h-64 bg-gray-100 rounded-xl overflow-hidden shadow-inner">
+			<div className="aspect-square max-h-64 bg-gray-100 rounded-xl overflow-hidden shadow-inner relative">
+				{/* Loading overlay while image is loading */}
+				{!previewState.imageLoaded && (
+					<div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-10">
+						<div className="flex flex-col items-center">
+							<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-500 mb-2"></div>
+							<p className="text-xs text-gray-600">Рендериране...</p>
+						</div>
+					</div>
+				)}
+				
 				<img
 					ref={imgRef}
-					src={previewUrl}
+					src={previewState.url}
 					alt="Preview"
-					className="w-full h-full object-cover"
-					onLoad={() => {
-						console.log('Preview image loaded successfully');
-					}}
-					onError={(e) => {
-						console.error('Preview image failed to load:', e);
-						setError(true);
-					}}
+					className={`w-full h-full object-cover transition-opacity duration-300 ${
+						previewState.imageLoaded ? 'opacity-100' : 'opacity-0'
+					}`}
+					onLoad={handleImageLoad}
+					onError={handleImageError}
 					style={{
 						imageRendering: 'auto',
 						backfaceVisibility: 'hidden',
 						transform: 'translateZ(0)', // Force hardware acceleration
 					}}
+					// Add cache-busting for mobile browsers
+					crossOrigin="anonymous"
 				/>
 			</div>
 			
@@ -235,6 +421,9 @@ function MobileImagePreview({ file }) {
 				<p>📁 {file?.name || 'Неизвестен файл'}</p>
 				<p>📏 {file?.size ? Math.round(file.size / 1024) + ' KB' : 'Неизвестен размер'}</p>
 				{file?.type && <p>🎨 {file.type}</p>}
+				{file?.lastModified && (
+					<p>🕐 {new Date(file.lastModified).toLocaleString('bg-BG')}</p>
+				)}
 			</div>
 		</div>
 	);

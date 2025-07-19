@@ -27,17 +27,33 @@ export default function GallerySection({
 	}, []);
 
 	const handleImageUpload = async (event) => {
-		const file = event.target.files[0];
-		if (file) {
+		// Always reset the input first to ensure clean state
+		const input = event.target;
+		const file = input.files?.[0];
+		
+		// Clear any previous state
+		setError(null);
+		setPendingFile(null);
+		setNewImageName("");
+		
+		if (!file) {
+			// Reset the input value
+			input.value = '';
+			return;
+		}
+		
+		try {
 			// Validate file size (max 10MB - more lenient)
 			if (file.size > 10 * 1024 * 1024) {
 				setError('Файлът е твърде голям. Максималният размер е 10MB.');
+				input.value = ''; // Reset input
 				return;
 			}
 
 			// Additional mobile-specific validations
 			if (file.size === 0) {
 				setError('Файлът е празен или повреден.');
+				input.value = ''; // Reset input
 				return;
 			}
 
@@ -59,17 +75,37 @@ export default function GallerySection({
 			
 			if (!isValidType) {
 				setError('Моля изберете валиден файл с изображение (JPG, PNG, GIF, WebP, BMP).');
+				input.value = ''; // Reset input
 				return;
 			}
+			
+			// Log file details for debugging
+			console.log('File selected:', {
+				name: file.name,
+				size: file.size,
+				type: file.type,
+				lastModified: file.lastModified,
+				timestamp: Date.now()
+			});
 			
 			// Set default name from file name (without extension)
 			const defaultName = file.name.replace(/\.[^/.]+$/, "");
 			setNewImageName(defaultName);
 			setPendingFile(file);
 			setShowRenameModal(true);
+			
+		} catch (error) {
+			console.error('Error handling file upload:', error);
+			setError('Грешка при обработка на файла. Моля опитайте отново.');
+		} finally {
+			// Always reset the input value to allow selecting the same file again
+			// Use setTimeout to ensure it happens after the file is processed
+			setTimeout(() => {
+				if (input) {
+					input.value = '';
+				}
+			}, 100);
 		}
-		// Reset the input so the same file can be selected again
-		event.target.value = '';
 	};
 
 	const handleConfirmUpload = async () => {
@@ -80,17 +116,31 @@ export default function GallerySection({
 
 		const success = await onImageUpload(pendingFile, newImageName.trim());
 		if (success) {
+			// Clean up modal state completely on success
 			setShowRenameModal(false);
 			setPendingFile(null);
 			setNewImageName("");
+			setError(null);
+			
+			// Additional cleanup for mobile
+			setTimeout(() => {
+				console.log('Upload successful, modal cleaned up');
+			}, 100);
 		}
 	};
 
 	const handleCancelUpload = () => {
+		// Clean up modal state completely
 		setShowRenameModal(false);
 		setPendingFile(null);
 		setNewImageName("");
 		setError(null);
+		
+		// Force cleanup of any remaining object URLs
+		setTimeout(() => {
+			// Additional cleanup if needed
+			console.log('Modal cancelled and cleaned up');
+		}, 100);
 	};
 
 	const handleAddPhotoClick = () => {
