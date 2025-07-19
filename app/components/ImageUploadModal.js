@@ -77,7 +77,7 @@ export default function ImageUploadModal({
 	);
 }
 
-// Samsung A23-optimized image preview component with comprehensive error handling
+// Samsung A23-optimized image preview component with simplified state management
 function SamsungOptimizedImagePreview({ file }) {
 	const [previewState, setPreviewState] = useState({
 		url: null,
@@ -168,29 +168,37 @@ function SamsungOptimizedImagePreview({ file }) {
 		cleanupExecutedRef.current = false;
 	}, []);
 	
-	// Enhanced file to URL conversion with multiple strategies
+	// Simplified file to URL conversion 
 	const createPreviewUrl = useCallback(async () => {
 		if (!file || cleanupExecutedRef.current) return;
 		
-		resetState();
+		console.log('Creating preview URL, attempt:', retryCountRef.current + 1);
 		
-		console.log('Samsung A23: Creating preview URL, attempt:', retryCountRef.current + 1);
-		console.log('Samsung A23: File info:', {
-			name: file.name,
-			size: file.size,
-			type: file.type,
-			lastModified: file.lastModified
-		});
+		// Set initial loading state
+		setPreviewState(prev => ({
+			...prev,
+			loading: true,
+			error: false,
+			url: null,
+			imageLoaded: false
+		}));
+		
+		cleanupExecutedRef.current = false;
 		
 		// Set processing timeout
 		timeoutRef.current = setTimeout(() => {
 			if (!cleanupExecutedRef.current) {
-				console.log('Samsung A23: Preview creation timeout');
+				console.log('Preview creation timeout');
 				if (retryCountRef.current < config.maxRetries) {
 					retryCountRef.current++;
 					setTimeout(() => createPreviewUrl(), 500);
 				} else {
-					setPreviewState(prev => ({ ...prev, loading: false, error: true }));
+					setPreviewState(prev => ({ 
+						...prev, 
+						loading: false, 
+						error: true,
+						url: null
+					}));
 				}
 			}
 		}, config.timeout);
@@ -278,34 +286,37 @@ function SamsungOptimizedImagePreview({ file }) {
 			});
 		};
 		
-		// Try strategies in order
+		// Try creating preview URL
 		try {
 			let result;
 			
+			// Try FileReader first for Samsung, Object URL for others
 			if (config.preferFileReader) {
 				try {
 					result = await tryFileReader();
 				} catch (e) {
-					console.log('Samsung A23: FileReader failed, trying Object URL');
+					console.log('FileReader failed, trying Object URL');
 					result = await tryObjectURL();
 				}
 			} else {
 				try {
 					result = await tryObjectURL();
 				} catch (e) {
-					console.log('Samsung A23: Object URL failed, trying FileReader');
+					console.log('Object URL failed, trying FileReader');
 					result = await tryFileReader();
 				}
 			}
 			
 			if (cleanupExecutedRef.current) return;
 			
+			// Clear timeout and set URL (but keep loading until image loads)
 			clearTimeout(timeoutRef.current);
 			setPreviewState(prev => ({
 				...prev,
 				url: result.url,
-				loading: false,
+				loading: true, // Keep loading until image onLoad fires
 				error: false,
+				imageLoaded: false,
 				loadMethod: result.method
 			}));
 			
@@ -329,8 +340,13 @@ function SamsungOptimizedImagePreview({ file }) {
 	const handleImageLoad = useCallback(() => {
 		if (cleanupExecutedRef.current) return;
 		
-		console.log('Samsung A23: Image rendered successfully');
-		setPreviewState(prev => ({ ...prev, imageLoaded: true }));
+		console.log('Image rendered successfully');
+		setPreviewState(prev => ({ 
+			...prev, 
+			loading: false,    // Stop loading when image actually loads
+			imageLoaded: true,
+			error: false
+		}));
 	}, []);
 	
 	// Handle image load error with retry logic
@@ -443,26 +459,11 @@ function SamsungOptimizedImagePreview({ file }) {
 	return (
 		<div className="w-full">
 			<div className="aspect-square max-h-64 bg-gray-50 rounded-xl overflow-hidden shadow-inner relative border">
-				{/* Loading overlay while image is rendering */}
-				{!previewState.imageLoaded && previewState.url && (
-					<div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-						<div className="flex flex-col items-center">
-							<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-500 mb-2"></div>
-							<p className="text-xs text-gray-600">Рендериране...</p>
-							{isSamsungDevice() && (
-								<p className="text-xs text-blue-500">Samsung оптимизация</p>
-							)}
-						</div>
-					</div>
-				)}
-				
 				<img
 					ref={imgRef}
 					src={previewState.url}
 					alt="Preview"
-					className={`w-full h-full object-cover transition-opacity duration-500 ${
-						previewState.imageLoaded ? 'opacity-100' : 'opacity-0'
-					}`}
+					className="w-full h-full object-cover"
 					onLoad={handleImageLoad}
 					onError={handleImageError}
 					style={{
