@@ -15,11 +15,36 @@ export const isMobile = () => {
 	return mobileRegex.test(userAgent) || (hasTouch && isSmallScreen);
 };
 
-// Check if device is Samsung
+// Check if device is Samsung (enhanced for Samsung A23)
 export const isSamsung = () => {
 	if (typeof window === 'undefined') return false;
 	const userAgent = navigator.userAgent || '';
-	return /samsung/i.test(userAgent);
+	
+	// Samsung device detection patterns
+	const samsungPatterns = [
+		/samsung/i,
+		/sm-a235/i, // Samsung Galaxy A23 specific
+		/galaxy a23/i, // Galaxy A23 name pattern
+		/samsungbrowser/i,
+		/samsung-sm-/i
+	];
+	
+	return samsungPatterns.some(pattern => pattern.test(userAgent));
+};
+
+// Specific Samsung A23 detection
+export const isSamsungA23 = () => {
+	if (typeof window === 'undefined') return false;
+	const userAgent = navigator.userAgent || '';
+	
+	// Samsung Galaxy A23 specific patterns
+	const a23Patterns = [
+		/sm-a235/i, // Model number
+		/galaxy a23/i, // Name
+		/samsung.*a23/i
+	];
+	
+	return a23Patterns.some(pattern => pattern.test(userAgent));
 };
 
 // Check if browser is Samsung Internet
@@ -44,17 +69,91 @@ export const supportsCameraCapture = () => {
 	return hasGetUserMedia || hasCaptureSupport;
 };
 
-// Get optimal image processing settings for mobile
+// Alias for backwards compatibility
+export const hasCameraSupport = supportsCameraCapture;
+
+// Samsung A23 specific camera support check
+export const samsungA23CameraSupport = () => {
+	if (typeof window === 'undefined') return false;
+	
+	const samsungA23 = isSamsungA23();
+	const samsung = isSamsung();
+	const samsungBrowser = isSamsungInternet();
+	
+	if (!samsungA23 && !samsung && !samsungBrowser) return false;
+	
+	// Samsung A23 has good camera support but needs specific handling
+	return {
+		hasCamera: true,
+		preferFileInput: true, // File input works better than getUserMedia on Samsung
+		supportedFormats: ['image/jpeg', 'image/png', 'image/webp'],
+		maxResolution: { width: 4000, height: 3000 }, // Samsung A23 camera specs
+		preferredSettings: {
+			facing: 'environment', // Rear camera
+			quality: 0.8,
+			format: 'image/jpeg'
+		}
+	};
+};
+
+// Get optimal image processing settings for mobile (enhanced for Samsung A23)
 export const getMobileImageSettings = () => {
 	const mobile = isMobile();
 	const samsung = isSamsung();
+	const samsungA23 = isSamsungA23();
+	const samsungBrowser = isSamsungInternet();
 	
+	// Samsung A23 specific optimizations
+	if (samsungA23 || samsungBrowser) {
+		return {
+			maxDimension: 900, // Lower for Samsung A23 to prevent memory issues
+			quality: 0.7, // Lower quality for better performance
+			maxSize: 3 * 1024 * 1024, // 3MB for Samsung A23 (camera photos can be large)
+			useFileReader: true, // Always use FileReader for Samsung
+			timeout: 12000, // Longer timeout for Samsung processing
+			preferCanvas: false, // Samsung A23 has issues with canvas sometimes
+			aggressiveCleanup: true, // Enable aggressive cleanup
+			retryCount: 3, // More retries for Samsung
+			processingDelay: 300, // Add delay between operations
+		};
+	}
+	
+	// General Samsung settings
+	if (samsung) {
+		return {
+			maxDimension: 1000,
+			quality: 0.75,
+			maxSize: 2.5 * 1024 * 1024,
+			useFileReader: true,
+			timeout: 10000,
+			aggressiveCleanup: true,
+			retryCount: 2,
+			processingDelay: 200,
+		};
+	}
+	
+	// General mobile settings
+	if (mobile) {
+		return {
+			maxDimension: 1200,
+			quality: 0.8,
+			maxSize: 2 * 1024 * 1024,
+			useFileReader: true,
+			timeout: 8000,
+			retryCount: 1,
+			processingDelay: 100,
+		};
+	}
+	
+	// Desktop settings
 	return {
-		maxDimension: mobile ? (samsung ? 1000 : 1200) : 1500,
-		quality: mobile ? (samsung ? 0.75 : 0.8) : 0.85,
-		maxSize: mobile ? 2 * 1024 * 1024 : 3 * 1024 * 1024, // 2MB for mobile, 3MB for desktop
-		useFileReader: mobile || samsung, // Use FileReader for mobile devices
-		timeout: mobile ? 10000 : 15000, // Shorter timeout for mobile
+		maxDimension: 1500,
+		quality: 0.85,
+		maxSize: 3 * 1024 * 1024,
+		useFileReader: false,
+		timeout: 15000,
+		retryCount: 1,
+		processingDelay: 0,
 	};
 };
 

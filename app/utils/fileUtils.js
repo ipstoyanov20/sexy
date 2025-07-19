@@ -20,23 +20,81 @@ export const filesAreEqual = (file1, file2) => {
 	);
 };
 
-// Clean up file input to ensure it can be used again
+// Clean up file input to ensure it can be used again (Samsung A23 optimized)
 export const resetFileInput = (inputElement) => {
 	if (!inputElement) return;
 	
 	try {
-		// Clear the value
-		inputElement.value = '';
+		// Detect if we're on Samsung device
+		const isSamsungDevice = /samsung/i.test(navigator.userAgent) || 
+			/samsungbrowser/i.test(navigator.userAgent);
 		
-		// For some mobile browsers, we need to recreate the input
-		const parent = inputElement.parentNode;
-		if (parent) {
-			const newInput = inputElement.cloneNode(true);
-			// Copy all event listeners would be complex, so we'll just clear the value
-			// The parent component should handle re-attaching event listeners if needed
+		if (isSamsungDevice) {
+			console.log('Samsung A23: Enhanced file input reset');
+			
+			// Samsung A23: More aggressive reset
+			inputElement.value = null;
+			inputElement.value = '';
+			
+			// Samsung A23: Reset form if it exists
+			if (inputElement.form) {
+				try {
+					inputElement.form.reset();
+				} catch (e) {
+					console.warn('Samsung A23: Failed to reset form:', e);
+				}
+			}
+			
+			// Samsung A23: Force blur and focus to trigger input reset
+			try {
+				inputElement.blur();
+				setTimeout(() => {
+					inputElement.focus();
+					inputElement.blur();
+				}, 50);
+			} catch (e) {
+				console.warn('Samsung A23: Failed to blur/focus:', e);
+			}
+			
+			// Samsung A23: Try to trigger change event to clear any cached files
+			try {
+				const event = new Event('change', { bubbles: true });
+				inputElement.dispatchEvent(event);
+			} catch (e) {
+				console.warn('Samsung A23: Failed to dispatch change event:', e);
+			}
+			
+			// Samsung A23: Final cleanup - clone and replace if needed
+			setTimeout(() => {
+				try {
+					if (inputElement.files && inputElement.files.length > 0) {
+						console.log('Samsung A23: Input still has files, cloning...');
+						const parent = inputElement.parentNode;
+						const newInput = inputElement.cloneNode(true);
+						newInput.value = '';
+						
+						// Preserve important attributes
+						newInput.style.display = inputElement.style.display;
+						newInput.className = inputElement.className;
+						
+						parent.replaceChild(newInput, inputElement);
+					}
+				} catch (e) {
+					console.warn('Samsung A23: Failed to clone input:', e);
+				}
+			}, 100);
+		} else {
+			// Standard reset for other devices
+			inputElement.value = '';
 		}
 	} catch (error) {
 		console.warn('Failed to reset file input:', error);
+		// Fallback: basic reset
+		try {
+			inputElement.value = '';
+		} catch (e) {
+			console.warn('Failed basic file input reset:', e);
+		}
 	}
 };
 
